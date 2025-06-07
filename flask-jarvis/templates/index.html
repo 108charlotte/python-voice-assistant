@@ -50,7 +50,6 @@
                     }
 
                     const result = await response.json();
-                    alert("Transcription: " + result.transcript + "\nResponse: " + result.response);
 
                     const audio = document.getElementById("voice");
                     audio.src = result.audio_url + '?v=' + Date.now();

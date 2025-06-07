@@ -78,7 +78,7 @@ def respond(text):
     chunk_folder = os.path.join(output_folder, 'chunks')
     os.makedirs(chunk_folder, exist_ok=True)
 
-    chunks = chunk_text(ai_response)
+    chunks = [ai_response]
 
     # clear existing chunk files
     for f in glob.glob(os.path.join(chunk_folder, "*.wav")): 
