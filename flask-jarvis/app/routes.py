@@ -1,10 +1,21 @@
-from flask import Blueprint
+from flask import Blueprint, request, jsonify, render_template
 from app.listener import listen, respond 
+from app.audio_getter import get_upload_path, process_audio
 
 main = Blueprint("main", __name__)
 
 @main.route("/")
 def home():
-    text = listen()
-    respond(text)
-    return "Hello from JARVIS!"
+    return render_template("index.html")
+
+@main.route("/upload", methods=["POST"])
+def upload_audio(): 
+    if 'audio' not in request.files: 
+        return jsonify({"error": "No audio file uploaded"}), 400
+    
+    file = request.files['audio']
+    wav_path = process_audio(file)
+    transcript = listen(wav_path)
+    
+    response = respond(transcript)
+    return jsonify({"transcript": transcript, "response": response}), 200

@@ -8,7 +8,7 @@ import glob
 import asyncio
 import edge_tts
 
-def listen(): 
+def listen(audio_path): 
     # load Vosk model
     model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
     model = vosk.Model(model_path)
@@ -16,10 +16,8 @@ def listen():
 
     # read and transcribe audio file
     transcribed_text = ""
-    audio_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_input')
-    audio_file = os.path.join(audio_folder, 'harvard_16k.wav')
 
-    with wave.open(audio_file, "rb") as wf:
+    with wave.open(audio_path, "rb") as wf:
         if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getframerate() != 16000:
             raise ValueError("Audio file must be WAV format mono PCM 16-bit 16kHz.")
         
