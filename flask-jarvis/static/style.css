@@ -1,0 +1,50 @@
+body {
+    background-color: #0f0f0f;
+    color: #f5f5f5;
+    font-family: 'Rubik', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    margin: 0;
+    text-align: center;
+}
+
+h2 {
+    font-size: 2.5rem;
+    margin-bottom: 2rem;
+    color: #00ffe1;
+    letter-spacing: 1.5px;
+    text-shadow: 0 0 5px #00ffe1, 0 0 10px #00ffe1;
+}
+
+button {
+    background-color: #00ffe1;
+    color: #0f0f0f;
+    border: none;
+    padding: 14px 28px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 10px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background-color 0.2s ease-in-out, transform 0.1s;
+}
+
+button:hover:not(:disabled) {
+    background-color: #00c7b3;
+    transform: translateY(-2px);
+}
+
+button:disabled {
+    background-color: #444;
+    color: #aaa;
+    cursor: not-allowed;
+}
+
+audio {
+    margin-top: 30px;
+    width: 320px;
+    filter: drop-shadow(0 0 5px #00ffe1);
+}
