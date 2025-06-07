@@ -16,8 +16,11 @@ def process_audio(file_storage, upload_dir="audio_input"):
 
     file_storage.save(raw_path)
 
-    audio = AudioSegment.from_file(raw_path, format="webm")
-    audio = audio.set_channels(1).set_frame_rate(16000)
+    audio = AudioSegment.from_file(raw_path)
+    # Force channels, sample width, frame rate
+    audio = audio.set_channels(1)          # Mono
+    audio = audio.set_sample_width(2)      # 16-bit = 2 bytes
+    audio = audio.set_frame_rate(16000)    # 16kHz sample rate
     audio.export(wav_path, format="wav")
 
     return wav_path
