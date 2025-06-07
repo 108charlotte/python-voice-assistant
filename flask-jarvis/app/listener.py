@@ -102,3 +102,5 @@ def respond(text):
         combined += seg
 
     combined.export(os.path.join(output_folder, "output.wav"), format="wav")
+
+    return ai_response
