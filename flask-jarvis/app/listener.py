@@ -7,6 +7,7 @@ import os
 import glob
 import asyncio
 import edge_tts
+from pydub.playback import play
 
 def listen(audio_path): 
     # load Vosk model
@@ -101,6 +102,10 @@ def respond(text):
         seg = AudioSegment.from_file(mp3_file, format="mp3")
         combined += seg
 
-    combined.export(os.path.join(output_folder, "output.wav"), format="wav")
+    public_audio_path = os.path.join(os.path.dirname(__file__), '..', 'audio_output', 'output.wav')
+    combined.export(public_audio_path, format="wav")
 
-    return ai_response
+    return {
+        "text": ai_response, 
+        "audio_url": "/audio_output/output.wav"
+    }

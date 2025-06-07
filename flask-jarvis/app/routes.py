@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, send_from_directory
 from app.listener import listen, respond 
 from app.audio_getter import get_upload_path, process_audio
 import os
@@ -20,5 +20,14 @@ def upload_audio():
     print(f"File size: {os.path.getsize(wav_path)} bytes")
     transcript = listen(wav_path)
     
-    response = respond(transcript)
-    return jsonify({"transcript": transcript, "response": response}), 200
+    result = respond(transcript)
+    return jsonify({
+        "transcript": transcript,
+        "response": result["text"],
+        "audio_url": result["audio_url"]
+    }), 200
+
+@main.route('/audio_output/output.wav')
+def serve_audio(): 
+    audio_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
+    return send_from_directory(audio_folder, 'output.wav')

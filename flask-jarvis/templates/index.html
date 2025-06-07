@@ -1,12 +1,16 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>JARVIS</title>
 </head>
 <body>
-    <h2>JARVIS</h2>
+    <h2>JARVIS Voice Assistant</h2>
+    
     <button id="record">Start Recording</button>
     <button id="stop" disabled>Stop</button>
+    <br><br>
+    <audio id="voice" controls></audio>
 
     <script>
         let mediaRecorder;
@@ -34,17 +38,31 @@
                 const formData = new FormData();
                 formData.append('audio', audioBlob, 'user_audio.wav');
 
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData
-                });
+                try {
+                    const response = await fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
 
-                const result = await response.json();
-                alert("Transcription: " + result.transcript + "\nResponse: " + result.response);
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error("Server returned an error:\n\n" + text);
+                    }
+
+                    const result = await response.json();
+                    alert("Transcription: " + result.transcript + "\nResponse: " + result.response);
+
+                    const audio = document.getElementById("voice");
+                    audio.src = result.audio_url + '?v=' + Date.now();
+                    audio.play();
+
+                } catch (err) {
+                    alert("An error occurred: " + err.message);
+                }
+
+                document.getElementById('record').disabled = false;
+                document.getElementById('stop').disabled = true;
             };
-
-            document.getElementById('record').disabled = false;
-            document.getElementById('stop').disabled = true;
         };
     </script>
 </body>
