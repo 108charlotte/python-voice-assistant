@@ -7,6 +7,8 @@ from pydub import AudioSegment
 import os
 import glob
 import time
+import asyncio
+import edge_tts
 
 # load Vosk model
 model = vosk.Model("model")
@@ -52,15 +54,6 @@ def get_response(text):
 ai_response = get_response(transcribed_text)
 print("AI Response:", ai_response)
 
-# text-to-speech output with pyttsx3
-engine = pyttsx3.init()
-engine.setProperty('rate', 150)
-engine.setProperty('volume', 1.0)
-
-available_voices = engine.getProperty('voices')
-print("Available voices:", [voice.id for voice in available_voices])
-engine.setProperty('voice', available_voices[1].id)
-
 # set up folder to store audio chunk files
 chunk_folder = "chunks"
 if not os.path.exists(chunk_folder):
@@ -86,49 +79,25 @@ def chunk_text(text, max_length=200):
     return chunks
 
 chunks = chunk_text(ai_response)
-try: 
+chunk_folder = "chunks"
+os.makedirs(chunk_folder, exist_ok=True)
+
+async def synthesize_chunk(i, chunk):
+    output_path = os.path.join(chunk_folder, f"chunk_{i}.mp3")
+    print(f"[INFO] Synthesizing chunk {i} with edge-tts: {chunk}")
+    communicate = edge_tts.Communicate(chunk, "en-GB-RyanNeural")
+    await communicate.save(output_path)
+
+async def synthesize_all_chunks():
     for i, chunk in enumerate(chunks):
-        filename = os.path.join(chunk_folder, f"chunk_{i}.wav")
-        print(f"[INFO] Saving chunk {i}: {chunk}")
-        engine.save_to_file(chunk, filename)
-        engine.runAndWait()
+        await synthesize_chunk(i, chunk)
 
-        if not os.path.isfile(filename):
-            raise FileNotFoundError(f"[ERROR] Failed to create {filename}")
-        if os.path.getsize(filename) == 0:
-            raise ValueError(f"[ERROR] {filename} exists but is empty (0 bytes)")
-except KeyboardInterrupt: 
-    print("\n[INTERRUPTED] You manually stopped the script with Ctrl+C.")
-    exit(1)
+asyncio.run(synthesize_all_chunks())
 
-engine.runAndWait()
-
-try:
-    for i in range(len(chunks)):
-        filename = os.path.join(chunk_folder, f"chunk_{i}.wav")
-        waited = 0
-        print(f"[INFO] Waiting for {filename} to be created...")
-        while not os.path.exists(filename):
-            time.sleep(0.1)
-            waited += 0.1
-            if waited % 1 < 0.1:
-                print(f"  ...still waiting ({waited:.1f}s)")
-            if waited >= 5: 
-                raise FileNotFoundError(f"[ERROR] Timed out waiting for {filename}")
-except KeyboardInterrupt:
-    print("\n[INTERRUPTED] You manually stopped the script with Ctrl+C.")
-    exit(1)
-
-
-print("All chunks saved. Combining...")
-
-# Combine into one audio segment
-combined_audio = AudioSegment.empty()
+combined = AudioSegment.empty()
 for i in range(len(chunks)):
-    filename = os.path.join(chunk_folder, f"chunk_{i}.wav")
-    audio_segment = AudioSegment.from_file(filename, format="wav")
-    audio_segment = audio_segment.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-    combined_audio += audio_segment
+    mp3_file = os.path.join(chunk_folder, f"chunk_{i}.mp3")
+    seg = AudioSegment.from_file(mp3_file, format="mp3")
+    combined += seg
 
-output_file = combined_audio.export("output.wav", format="wav")
-print("Done. Final output written to output.wav")
+combined.export("output.wav", format="wav")
