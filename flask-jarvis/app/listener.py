@@ -7,7 +7,7 @@ import os
 import glob
 import asyncio
 import edge_tts
-from pydub.playback import play
+import re
 
 def listen(audio_path): 
     # load Vosk model
@@ -78,6 +78,8 @@ def respond(text):
     chunk_folder = os.path.join(output_folder, 'chunks')
     os.makedirs(chunk_folder, exist_ok=True)
 
+    ai_response = remove_markdown(ai_response)
+
     chunks = [ai_response]
 
     # clear existing chunk files
@@ -109,3 +111,7 @@ def respond(text):
         "text": ai_response, 
         "audio_url": "/audio_output/output.wav"
     }
+
+def remove_markdown(text): 
+    clean = re.sub(r'(\*{1,2}|_{1,2}|~{2}|`{1,3})', '', text)
+    return clean

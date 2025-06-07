@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template, send_from_directory
+from flask import Blueprint, request, jsonify, render_template, send_from_directory, current_app
 from app.listener import listen, respond 
 from app.audio_getter import get_upload_path, process_audio
 import os
@@ -7,6 +7,7 @@ main = Blueprint("main", __name__)
 
 @main.route("/")
 def home():
+    print("Current working directory:", os.getcwd())
     return render_template("index.html")
 
 @main.route("/upload", methods=["POST"])
