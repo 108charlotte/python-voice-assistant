@@ -24,19 +24,11 @@
         document.getElementById('record').onclick = async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.start();
 
             audioChunks = [];
             mediaRecorder.ondataavailable = e => {
                 audioChunks.push(e.data);
             };
-
-            document.getElementById('record').disabled = true;
-            document.getElementById('stop').disabled = false;
-        };
-
-        document.getElementById('stop').onclick = () => {
-            mediaRecorder.stop();
 
             mediaRecorder.onstop = async () => {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
@@ -67,6 +59,15 @@
                 document.getElementById('record').disabled = false;
                 document.getElementById('stop').disabled = true;
             };
+
+            mediaRecorder.start();
+
+            document.getElementById('record').disabled = true;
+            document.getElementById('stop').disabled = false;
+        };
+
+        document.getElementById('stop').onclick = () => {
+            mediaRecorder.stop();
         };
     </script>
 </body>
