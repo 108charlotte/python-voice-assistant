@@ -37,7 +37,7 @@
 
                 // Show processing message in the status container
                 const statusDiv = document.getElementById('status');
-                statusDiv.innerText = 'Processing...';
+                statusDiv.innerHTML = 'Processing... <img src="https://i.imgur.com/llF5iyg.gif" alt="Loading" style="width:24px;height:24px;vertical-align:middle;">';
 
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const formData = new FormData();
