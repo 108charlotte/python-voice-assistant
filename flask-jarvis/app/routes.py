@@ -2,8 +2,9 @@ from flask import Blueprint, request, jsonify, render_template, send_from_direct
 from app.listener import listen, respond 
 from app.audio_getter import process_audio
 import os
+import time
 
-main = Blueprint("main", __name__)  # ❌ Removed static_folder='static'
+main = Blueprint("main", __name__)
 
 @main.route("/")
 def home():
@@ -18,9 +19,16 @@ def upload_audio():
     wav_path = process_audio(file)
     print(f"WAV file saved to: {wav_path}")
     print(f"File size: {os.path.getsize(wav_path)} bytes")
+    
+    start = time.time()
     transcript = listen(wav_path)
+    print("Conversion:", time.time() - start)
     
     result = respond(transcript)
+    print("Recognition:", time.time() - start)
+    
+    print("TTS:", time.time() - start)
+    
     return jsonify({
         "transcript": transcript,
         "response": result["text"],

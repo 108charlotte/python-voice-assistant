@@ -55,21 +55,6 @@ def respond(text):
     # get response to input
     ai_response = get_response(text)
     print("AI Response:", ai_response)
-
-    # chunk audio so that voice doesn't break
-    def chunk_text(text, max_length=200): 
-        words = text.split()
-        chunks = []
-        chunk = ""
-        for word in words: 
-            if len(chunk) + len(word) + 1 <= max_length: 
-                chunk += word + " "
-            else: 
-                chunks.append(chunk.strip())
-                chunk = word + " "
-        if chunk: 
-            chunks.append(chunk.strip())
-        return chunks
     
     # set up folders
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
