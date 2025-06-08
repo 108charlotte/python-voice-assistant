@@ -40,8 +40,9 @@ def listen(audio_path):
 def respond(text): 
     def get_response(text):
         text = text.lower()
-        if "hello" in text:
-            return "Hello! How can I help you today?"
+        if "can you hear me" in text:
+            return "Unfortunately"
+        
 
         url = "https://ai.hackclub.com/chat/completions"
         headers = {"Content-Type": "application/json"}
