@@ -38,7 +38,6 @@ def listen(audio_path):
     return transcribed_text.strip()
 
 def respond(text): 
-    # determine appropriate response
     def get_response(text):
         text = text.lower()
         if "hello" in text:
@@ -53,45 +52,24 @@ def respond(text):
         response = requests.post(url, headers=headers, json=data)
         return response.json()["choices"][0]["message"]["content"]
 
-    # get response to input
     ai_response = get_response(text)
     print("AI Response:", ai_response)
     
-    # set up folders
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     os.makedirs(output_folder, exist_ok=True)
 
-    chunk_folder = os.path.join(output_folder, 'chunks')
-    os.makedirs(chunk_folder, exist_ok=True)
-
     ai_response = remove_markdown(ai_response)
 
-    chunks = [ai_response]
+    # Synthesize the whole response as one file
+    output_path = os.path.join(output_folder, "output.mp3")
+    print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
+    communicate = edge_tts.Communicate(ai_response, "en-GB-RyanNeural")
+    asyncio.run(communicate.save(output_path))
 
-    # clear existing chunk files
-    for f in glob.glob(os.path.join(chunk_folder, "*.wav")): 
-        os.remove(f)
-
-    async def synthesize_chunk(i, chunk):
-        output_path = os.path.join(chunk_folder, f"chunk_{i}.mp3")
-        print(f"[INFO] Synthesizing chunk {i} with edge-tts: {chunk}")
-        communicate = edge_tts.Communicate(chunk, "en-GB-RyanNeural")
-        await communicate.save(output_path)
-
-    async def synthesize_all_chunks():
-        for i, chunk in enumerate(chunks):
-            await synthesize_chunk(i, chunk)
-
-    asyncio.run(synthesize_all_chunks())
-
-    combined = AudioSegment.empty()
-    for i in range(len(chunks)):
-        mp3_file = os.path.join(chunk_folder, f"chunk_{i}.mp3")
-        seg = AudioSegment.from_file(mp3_file, format="mp3")
-        combined += seg
-
-    public_audio_path = os.path.join(os.path.dirname(__file__), '..', 'audio_output', 'output.wav')
-    combined.export(public_audio_path, format="wav")
+    # Convert to wav
+    audio = AudioSegment.from_file(output_path, format="mp3")
+    public_audio_path = os.path.join(output_folder, 'output.wav')
+    audio.export(public_audio_path, format="wav")
 
     return {
         "text": ai_response, 
