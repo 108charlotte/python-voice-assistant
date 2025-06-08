@@ -31,9 +31,17 @@
             };
 
             mediaRecorder.onstop = async () => {
+                document.getElementById('record').disabled = false;
+                document.getElementById('stop').disabled = true;
+                // Show processing message
+                let processingMsg = document.createElement('div');
+                processingMsg.id = 'processing';
+                processingMsg.innerText = 'Processing...';
+                document.body.appendChild(processingMsg);
+
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 const formData = new FormData();
-                formData.append('audio', audioBlob, 'user_audio.wav');
+                formData.append('audio', audioBlob, 'user_audio.webm');
 
                 try {
                     const response = await fetch('/upload', {
@@ -54,10 +62,11 @@
 
                 } catch (err) {
                     alert("An error occurred: " + err.message);
+                } finally {
+                    // Remove processing message
+                    const msg = document.getElementById('processing');
+                    if (msg) msg.remove();
                 }
-
-                document.getElementById('record').disabled = false;
-                document.getElementById('stop').disabled = true;
             };
 
             mediaRecorder.start();
