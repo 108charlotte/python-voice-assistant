@@ -9,11 +9,12 @@ import asyncio
 import edge_tts
 import re
 
+# load vosk model
+model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
+vosk_model = vosk.Model(model_path)
+
 def listen(audio_path): 
-    # load Vosk model
-    model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
-    model = vosk.Model(model_path)
-    recognizer = vosk.KaldiRecognizer(model, 16000)
+    recognizer = vosk.KaldiRecognizer(vosk_model, 16000)
 
     # read and transcribe audio file
     transcribed_text = ""
