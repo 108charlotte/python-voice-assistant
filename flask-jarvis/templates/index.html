@@ -51,7 +51,10 @@
                 });
                 const result = await response.json();
                 audio.src = result.audio_url + '?v=' + Date.now();
-                audio.play();
+
+                setTimeout(() => {
+                    audio.play();
+                }, 1000);
             };
             recognition.onend = () => {
                 console.log("Recognition ended");
