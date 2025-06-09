@@ -9,3 +9,7 @@ hack club ai documentation: https://ai.hackclub.com/
 merging audio files in python: https://stackoverflow.com/questions/61499350/combine-audio-files-in-python
 
 web speech api documentation: https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API
+
+audio visualizer tutorial: https://www.youtube.com/watch?v=f0dwg99EVfo
+
+cooler audio visualizer: https://www.youtube.com/watch?v=qDIF2z_VtHs

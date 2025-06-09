@@ -13,16 +13,31 @@
     <h2>JARVIS Voice Assistant</h2>
     
     <button id="record">Bother me</button>
+    <button id="stop">Shut Up</button>
     <br><br>
     <div id="status"></div>
     <audio id="voice" controls></audio>
+    <canvas id="visualizer" width="400" height="200"></canvas>
 
     <script>
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recordBtn = document.getElementById('record');
+        const stopBtn = document.getElementById('stop');
         const statusDiv = document.getElementById('status');
         const audio = document.getElementById("voice");
+        const canvas = document.getElementById("visualizer");
+        const ctx = canvas.getContext("2d");
         let recognition, listening = false;
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
 
         recordBtn.onclick = () => {
             if (!SpeechRecognition) {
@@ -35,6 +50,7 @@
             recognition.continuous = false;
             listening = true;
             recordBtn.disabled = true;
+            stopBtn.disabled = false;
 
             recognition.onstart = () => {
                 console.log("Recognition started");
@@ -71,6 +87,59 @@
             };
             recognition.start();
         };
+
+        stopBtn.onclick = () => {
+            listening = false;
+            recordBtn.disabled = false;
+            stopBtn.disabled = true;
+            if (recognition) recognition.stop();
+        };
+        
+        function animate(){
+            x = 0; 
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            analyser.getByteFrequencyData(dataArray); 
+            drawVisualizer(bufferLength, x, barWidth, barHeight, dataArray); 
+            requestAnimationFrame(animate); 
+        }
+
+        audio.onplay = () => {
+            // Resume the audio context if needed (required by some browsers)
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            drawVisualizer();
+        };
+
+        animate(); 
+
+        function drawVisualizer(bufferLength, x, barWidth, barHeight, dataArray) {
+            for (let i = 0; i < bufferLength; i++) {
+                barHeight = dataArray[i] * 0.8; 
+                ctx.save(); 
+                ctx.translate(canvas.width/2, canvas.height/2); 
+                ctx.rotate(i * 0.14); 
+                const hue = i * 1.5; 
+                ctx.fillStyle = 'hsl()' + hue + ', 100%,' + barHeight/3 + '%'; 
+                ctx.fillRect(0, 0, barWidth, barHeight); 
+                x += barWidth; 
+                ctx.restore(); 
+            }
+        }
+
+        function drawVisualizer() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            analyser.getByteFrequencyData(dataArray);
+            let barWidth = canvas.width / bufferLength;
+            let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                let barHeight = dataArray[i] * 0.8;
+                ctx.fillStyle = `hsl(${i * 10}, 100%, 50%)`;
+                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
+                x += barWidth;
+            }
+            requestAnimationFrame(drawVisualizer);
+        }
     </script>
 </body>
 </html>
