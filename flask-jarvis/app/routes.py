@@ -44,7 +44,7 @@ def upload_audio():
         "audio_url": result["audio_url"]
     }), 200
 
-@main.route('/audio_output/output.wav')
-def serve_audio(): 
+@main.route('/audio_output/<filename>')
+def audio_output(filename):
     audio_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
-    return send_from_directory(audio_folder, 'output.wav')
+    return send_from_directory(audio_folder, filename)

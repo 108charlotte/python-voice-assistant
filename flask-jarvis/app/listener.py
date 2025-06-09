@@ -42,7 +42,12 @@ def respond(text):
         text = text.lower()
         url = "https://ai.hackclub.com/chat/completions"
         headers = {"Content-Type": "application/json"}
-        base = "You are Jarvis, a snarky and frank AI assistant. Your user is an intelligent teenager who you view as incompetent. Your responses are being spoken aloud. "
+        base = (
+            "You are Jarvis, a snarky and frank AI assistant. "
+            "Your user is an intelligent teenager who you view as incompetent. "
+            "Your responses are being spoken aloud. "
+            "Keep your responses concise and to the point."
+        )
 
         if "can you hear me" in text:
             return "Unfortunately"
@@ -84,7 +89,7 @@ def respond(text):
 
     ai_response = remove_markdown(ai_response).strip()
     ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
-    ai_response = ai_response.replace("kiddo", "")  # Remove the word entirely
+    ai_response = ai_response.replace("kiddo", "")
 
     print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
     try:
@@ -101,18 +106,13 @@ def respond(text):
             "audio_url": None
         }
 
-    # Convert to wav
-    audio = AudioSegment.from_file(output_path, format="mp3")
-    public_audio_path = os.path.join(output_folder, 'output.wav')
-    audio.export(public_audio_path, format="wav")
-
     ai_response = ai_response.strip()
     if ai_response.startswith('"') and ai_response.endswith('"'):
         ai_response = ai_response[1:-1].strip()
 
     return {
         "text": ai_response, 
-        "audio_url": "/audio_output/output.wav"
+        "audio_url": "/audio_output/output.mp3"
     }
 
 def remove_markdown(text): 
