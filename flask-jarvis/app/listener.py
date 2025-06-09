@@ -84,6 +84,7 @@ def respond(text):
 
     ai_response = remove_markdown(ai_response).strip()
     ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
+    ai_response = ai_response.replace("kiddo", "")  # Remove the word entirely
 
     print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
     try:
