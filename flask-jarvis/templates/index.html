@@ -70,9 +70,13 @@
                 console.log("Recognition error:", e);
                 if (e.error === "no-speech" && listening) {
                     setTimeout(() => recognition.start(), 500);
+                } else if (e.error === "network" && listening) {
+                    // Try to restart after a short delay
+                    setTimeout(() => recognition.start(), 1500);
                 } else {
                     listening = false;
                     recordBtn.disabled = false;
+                    stopBtn.disabled = true;
                 }
             };
             recognition.start();
