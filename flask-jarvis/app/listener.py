@@ -4,7 +4,6 @@ import requests
 import wave
 from pydub import AudioSegment
 import os
-import glob
 import asyncio
 import edge_tts
 import re
@@ -92,7 +91,8 @@ def respond(text):
 
     ai_response = remove_markdown(ai_response).strip()
     ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
-    ai_response = ai_response.replace("kiddo", "")
+    ai_response = re.sub(r'\bkiddo\b', '', ai_response, flags=re.IGNORECASE)
+    ai_response = re.sub(r'\bkid\b', '', ai_response, flags=re.IGNORECASE)
 
     print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
     try:
