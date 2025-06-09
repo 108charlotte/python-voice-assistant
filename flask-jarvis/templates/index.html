@@ -83,6 +83,7 @@
             recordBtn.disabled = false;
             stopBtn.disabled = true;
             if (recognition) recognition.stop();
+            statusDiv.innerHTML = ""; // Clear status and processing gif/text
         };
 
         class Bar {
