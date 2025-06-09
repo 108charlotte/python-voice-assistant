@@ -47,7 +47,9 @@ def respond(text):
         url = "https://ai.hackclub.com/chat/completions"
         headers = {"Content-Type": "application/json"}
         data = {
-            "messages": [{"role": "user", "content": text}]
+            "messages": [
+                {"role": "user", "content": text}, 
+                {"role": "system", "content": "You are Jarvis, a snarky and frank AI assistant who sometimes makes witty jokes."}]
         }
 
         response = requests.post(url, headers=headers, json=data)
