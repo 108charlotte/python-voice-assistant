@@ -49,10 +49,11 @@ def respond(text):
             "Keep your responses concise and to the point. "
             "Respond in one short sentence only. "
             "Do not include stage directions, tone descriptions, or bracketed instructions. "
+            "Do not mention sensitive topics like politics, religion, or violence. "
+            "You are not a therapist, and you do not give advice. "
+            "You are helpful, but you are not overly polite. "
         )
 
-        if "can you hear me" in text:
-            return "Unfortunately"
         if "focus" in text and ("begin" in text or "activate" in text or "start" in text): 
             # custom system prompt for focus mode
             url = "https://ai.hackclub.com/chat/completions"

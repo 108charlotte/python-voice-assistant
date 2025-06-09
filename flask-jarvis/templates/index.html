@@ -17,7 +17,7 @@
     <br><br>
     <div id="status"></div>
     <audio id="voice" controls></audio>
-    <canvas id="visualizer" width="400" height="200"></canvas>
+    <canvas id="audio_visualizer" width="400" height="200"></canvas>
 
     <script>
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -25,19 +25,9 @@
         const stopBtn = document.getElementById('stop');
         const statusDiv = document.getElementById('status');
         const audio = document.getElementById("voice");
-        const canvas = document.getElementById("visualizer");
+        const canvas = document.getElementById("audio_visualizer");
         const ctx = canvas.getContext("2d");
         let recognition, listening = false;
-
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64;
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const source = audioCtx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
 
         recordBtn.onclick = () => {
             if (!SpeechRecognition) {
@@ -94,52 +84,70 @@
             stopBtn.disabled = true;
             if (recognition) recognition.stop();
         };
-        
-        function animate(){
-            x = 0; 
-            ctx.clearRect(0, 0, canvas.width, canvas.height); 
-            analyser.getByteFrequencyData(dataArray); 
-            drawVisualizer(bufferLength, x, barWidth, barHeight, dataArray); 
-            requestAnimationFrame(animate); 
-        }
 
-        audio.onplay = () => {
-            // Resume the audio context if needed (required by some browsers)
-            if (audioCtx.state === 'suspended') {
-                audioCtx.resume();
+        class Bar {
+            constructor(centerX, centerY, radius, angle, color, index) {
+                this.centerX = centerX;
+                this.centerY = centerY;
+                this.radius = radius;
+                this.angle = angle;
+                this.length = 0;
+                this.color = color;
+                this.index = index;
             }
-            drawVisualizer();
-        };
-
-        animate(); 
-
-        function drawVisualizer(bufferLength, x, barWidth, barHeight, dataArray) {
-            for (let i = 0; i < bufferLength; i++) {
-                barHeight = dataArray[i] * 0.8; 
-                ctx.save(); 
-                ctx.translate(canvas.width/2, canvas.height/2); 
-                ctx.rotate(i * 0.14); 
-                const hue = i * 1.5; 
-                ctx.fillStyle = 'hsl()' + hue + ', 100%,' + barHeight/3 + '%'; 
-                ctx.fillRect(0, 0, barWidth, barHeight); 
-                x += barWidth; 
-                ctx.restore(); 
+            update(micInput) {
+                this.length = (micInput / 255) * 60 + 10;
+            }
+            draw(context) {
+                const x1 = this.centerX + Math.cos(this.angle) * this.radius;
+                const y1 = this.centerY + Math.sin(this.angle) * this.radius;
+                const x2 = this.centerX + Math.cos(this.angle) * (this.radius + this.length);
+                const y2 = this.centerY + Math.sin(this.angle) * (this.radius + this.length);
+                context.strokeStyle = this.color;
+                context.lineWidth = 4;
+                context.beginPath();
+                context.moveTo(x1, y1);
+                context.lineTo(x2, y2);
+                context.stroke();
             }
         }
 
-        function drawVisualizer() {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 64; // You can adjust for more/less bars
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        const source = audioCtx.createMediaElementSource(audio);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        // Create an array to hold your Bar objects
+        const bars = [];
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const radius = 40;
+        for (let i = 0; i < bufferLength; i++) {
+            const angle = (i / bufferLength) * Math.PI * 2;
+            const color = `hsl(${200 + (i * 2) % 60}, 100%, 60%)`; // blue/cyan spiral
+            bars.push(new Bar(centerX, centerY, radius, angle, color, i));
+        }
+
+        function animate() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             analyser.getByteFrequencyData(dataArray);
-            let barWidth = canvas.width / bufferLength;
-            let x = 0;
+
             for (let i = 0; i < bufferLength; i++) {
-                let barHeight = dataArray[i] * 0.8;
-                ctx.fillStyle = `hsl(${i * 10}, 100%, 50%)`;
-                ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
-                x += barWidth;
+                bars[i].update(dataArray[i]);
+                bars[i].draw(ctx);
             }
-            requestAnimationFrame(drawVisualizer);
+            requestAnimationFrame(animate);
         }
+        audio.onplay = () => {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            animate();
+        };
+        animate(); 
     </script>
 </body>
 </html>
