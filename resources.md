@@ -13,3 +13,5 @@ web speech api documentation: https://developer.mozilla.org/en-US/docs/Web/API/W
 audio visualizer tutorial: https://www.youtube.com/watch?v=f0dwg99EVfo (didn't end up using these designs but its a great collection)
 
 cooler audio visualizer: https://www.youtube.com/watch?v=qDIF2z_VtHs
+
+ended up actually using this tutorial the most: https://www.youtube.com/watch?v=qNEb9of714U
