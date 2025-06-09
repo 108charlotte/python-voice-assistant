@@ -38,13 +38,12 @@
 
             recognition.onstart = () => {
                 console.log("Recognition started");
-                statusDiv.innerText = "Listening...";
             };
 
             recognition.onresult = async (event) => {
                 console.log("Recognition result:", event);
                 const transcript = event.results[0][0].transcript;
-                statusDiv.innerText = "Processing...";
+                statusDiv.innerHTML = `You said: "${transcript}"<br><br>Processing... <img src="https://i.imgur.com/llF5iyg.gif" alt="Loading" style="width:24px;height:24px;vertical-align:middle;">`;
                 const response = await fetch('/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -53,7 +52,6 @@
                 const result = await response.json();
                 audio.src = result.audio_url + '?v=' + Date.now();
                 audio.play();
-                statusDiv.innerText = '';
             };
             recognition.onend = () => {
                 console.log("Recognition ended");
