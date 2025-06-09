@@ -12,70 +12,63 @@
 <body>
     <h2>JARVIS Voice Assistant</h2>
     
-    <button id="record">Start Recording</button>
-    <button id="stop" disabled>Stop</button>
+    <button id="record">Bother me</button>
     <br><br>
     <div id="status"></div>
     <audio id="voice" controls></audio>
 
     <script>
-        let mediaRecorder;
-        let audioChunks = [];
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        const recordBtn = document.getElementById('record');
+        const statusDiv = document.getElementById('status');
+        const audio = document.getElementById("voice");
+        let recognition, listening = false;
 
-        document.getElementById('record').onclick = async () => {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
+        recordBtn.onclick = () => {
+            if (!SpeechRecognition) {
+                alert("Web Speech API not supported.");
+                return;
+            }
+            recognition = new SpeechRecognition();
+            recognition.lang = 'en-US';
+            recognition.interimResults = false;
+            recognition.continuous = false;
+            listening = true;
+            recordBtn.disabled = true;
 
-            audioChunks = [];
-            mediaRecorder.ondataavailable = e => {
-                audioChunks.push(e.data);
+            recognition.onstart = () => {
+                console.log("Recognition started");
+                statusDiv.innerText = "Listening...";
             };
 
-            mediaRecorder.onstop = async () => {
-                document.getElementById('record').disabled = false;
-                document.getElementById('stop').disabled = true;
-
-                // Show processing message in the status container
-                const statusDiv = document.getElementById('status');
-                statusDiv.innerHTML = 'Processing... <img src="https://i.imgur.com/llF5iyg.gif" alt="Loading" style="width:24px;height:24px;vertical-align:middle;">';
-
-                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                const formData = new FormData();
-                formData.append('audio', audioBlob, 'user_audio.webm');
-
-                try {
-                    const response = await fetch('/upload', {
-                        method: 'POST',
-                        body: formData
-                    });
-
-                    if (!response.ok) {
-                        const text = await response.text();
-                        throw new Error("Server returned an error:\n\n" + text);
-                    }
-
-                    const result = await response.json();
-
-                    const audio = document.getElementById("voice");
-                    audio.src = result.audio_url + '?v=' + Date.now();
-                    audio.play();
-
-                } catch (err) {
-                    alert("An error occurred: " + err.message);
-                } finally {
-                    // Clear the status message
-                    statusDiv.innerText = '';
+            recognition.onresult = async (event) => {
+                console.log("Recognition result:", event);
+                const transcript = event.results[0][0].transcript;
+                statusDiv.innerText = "Processing...";
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ transcript })
+                });
+                const result = await response.json();
+                audio.src = result.audio_url + '?v=' + Date.now();
+                audio.play();
+                statusDiv.innerText = '';
+            };
+            recognition.onend = () => {
+                console.log("Recognition ended");
+                if (listening) setTimeout(() => recognition.start(), 500);
+            };
+            recognition.onerror = (e) => {
+                console.log("Recognition error:", e);
+                if (e.error === "no-speech" && listening) {
+                    setTimeout(() => recognition.start(), 500);
+                } else {
+                    listening = false;
+                    recordBtn.disabled = false;
                 }
             };
-
-            mediaRecorder.start();
-
-            document.getElementById('record').disabled = true;
-            document.getElementById('stop').disabled = false;
-        };
-
-        document.getElementById('stop').onclick = () => {
-            mediaRecorder.stop();
+            recognition.start();
         };
     </script>
 </body>

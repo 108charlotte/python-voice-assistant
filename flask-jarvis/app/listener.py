@@ -40,39 +40,74 @@ def listen(audio_path):
 def respond(text): 
     def get_response(text):
         text = text.lower()
-        if "can you hear me" in text:
-            return "Unfortunately"
-        
-
         url = "https://ai.hackclub.com/chat/completions"
         headers = {"Content-Type": "application/json"}
+        base = "You are Jarvis, a snarky and frank AI assistant. Your user is an intelligent teenager who you view as incompetent. Your responses are being spoken aloud. "
+
+        if "can you hear me" in text:
+            return "Unfortunately"
+        if "focus" in text and ("begin" in text or "activate" in text or "start" in text): 
+            # custom system prompt for focus mode
+            url = "https://ai.hackclub.com/chat/completions"
+            headers = {"Content-Type": "application/json"}
+            data = {
+                "messages": [
+                    {"role": "system", "content": base + "The user just activated focus mode, and you have just said 'Activating Focus mode. Please stand by...'. Conclude with a witty, sarcastic, or motivational one-liner about focusing or being productive."},
+                    {"role": "user", "content": text}
+                ]
+            }
+            response = requests.post(url, headers=headers, json=data)
+            return response.json()["choices"][0]["message"]["content"]
+
         data = {
             "messages": [
                 {"role": "user", "content": text}, 
-                {"role": "system", "content": "You are Jarvis, a snarky and frank AI assistant who sometimes makes witty jokes."}]
+                {"role": "system", "content": base + "You sometimes makes witty jokes."}]
         }
 
         response = requests.post(url, headers=headers, json=data)
         return response.json()["choices"][0]["message"]["content"]
 
     ai_response = get_response(text)
-    print("AI Response:", ai_response)
-    
+    print(f"AI Response: '{ai_response}'")
+
+    if not ai_response or not ai_response.strip():
+        return {
+            "text": "Sorry, I couldn't generate a response.",
+            "audio_url": None
+        }
+
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     os.makedirs(output_folder, exist_ok=True)
 
-    ai_response = remove_markdown(ai_response)
-
-    # Synthesize the whole response as one file
     output_path = os.path.join(output_folder, "output.mp3")
+
+    ai_response = remove_markdown(ai_response).strip()
+    ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
+
     print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
-    communicate = edge_tts.Communicate(ai_response, "en-GB-RyanNeural")
-    asyncio.run(communicate.save(output_path))
+    try:
+        communicate = edge_tts.Communicate(
+            ai_response,
+            "en-GB-RyanNeural",
+            rate="+20%"
+        )
+        asyncio.run(communicate.save(output_path))
+    except Exception as e:
+        print("edge-tts error:", e)
+        return {
+            "text": ai_response,
+            "audio_url": None
+        }
 
     # Convert to wav
     audio = AudioSegment.from_file(output_path, format="mp3")
     public_audio_path = os.path.join(output_folder, 'output.wav')
     audio.export(public_audio_path, format="wav")
+
+    ai_response = ai_response.strip()
+    if ai_response.startswith('"') and ai_response.endswith('"'):
+        ai_response = ai_response[1:-1].strip()
 
     return {
         "text": ai_response, 
@@ -82,3 +117,14 @@ def respond(text):
 def remove_markdown(text): 
     clean = re.sub(r'(\*{1,2}|_{1,2}|~{2}|`{1,3})', '', text)
     return clean
+
+'''
+import edge_tts, asyncio
+
+async def list_voices():
+    voices = await edge_tts.list_voices()
+    for v in voices:
+        print(v["ShortName"])
+
+asyncio.run(list_voices())
+'''

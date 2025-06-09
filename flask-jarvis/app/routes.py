@@ -12,6 +12,15 @@ def home():
 
 @main.route("/upload", methods=["POST"])
 def upload_audio(): 
+    if request.is_json and "transcript" in request.json:
+        transcript = request.json["transcript"]
+        result = respond(transcript)
+        return jsonify({
+            "transcript": transcript,
+            "response": result["text"],
+            "audio_url": result["audio_url"]
+        }), 200
+    
     if 'audio' not in request.files: 
         return jsonify({"error": "No audio file uploaded"}), 400
     
