@@ -7,6 +7,7 @@ import os
 import asyncio
 import edge_tts
 import re
+import uuid
 
 # load vosk model
 model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
@@ -87,7 +88,8 @@ def respond(text):
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     os.makedirs(output_folder, exist_ok=True)
 
-    output_path = os.path.join(output_folder, "output.mp3")
+    filename = f"{uuid.uuid4()}.mp3"
+    output_path = os.path.join(output_folder, filename)
 
     ai_response = remove_markdown(ai_response).strip()
     ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
@@ -115,7 +117,7 @@ def respond(text):
 
     return {
         "text": ai_response, 
-        "audio_url": "/audio_output/output.mp3"
+        "audio_url": f"/audio_output/{filename}"
     }
 
 def remove_markdown(text): 
