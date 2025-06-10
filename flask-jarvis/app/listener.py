@@ -8,6 +8,7 @@ import asyncio
 import edge_tts
 import re
 import uuid
+import time
 
 # load vosk model
 model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
@@ -118,14 +119,16 @@ def respond(text, convohistory=None):
             "convohistory": convohistory
         }
 
-    # clean up old audio output files
+    # clean up old audio output files (older than 10 minutes)
+    now = time.time()
     for fname in os.listdir(output_folder):
         fpath = os.path.join(output_folder, fname)
         if os.path.isfile(fpath) and fname != filename:
-            try:
-                os.remove(fpath)
-            except Exception as e:
-                print(f"Could not delete {fpath}: {e}")
+            if now - os.path.getmtime(fpath) > 600:  # 600 seconds = 10 minutes
+                try:
+                    os.remove(fpath)
+                except Exception as e:
+                    print(f"Could not delete {fpath}: {e}")
 
     ai_response = ai_response.strip()
     if ai_response.startswith('"') and ai_response.endswith('"'):

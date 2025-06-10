@@ -16,7 +16,7 @@
             <button id="record">Bother me</button>
             <button id="stop">Shut Up</button>
         </div>
-        <div id="status"><div style="color:#00bcd4;">Listening...</div></div>
+        <div id="status"></div>
         <audio id="voice" controls></audio>
         <canvas id="audio_visualizer" width="400" height="200"></canvas>
     </div>
@@ -77,9 +77,15 @@
             recognition.onend = () => {
                 recognizing = false; 
                 console.log("Recognition ended");
-                if (listening) setTimeout(() => {
-                    if (!recognizing) recognition.start();
-                }, 100);
+                if (listening) {
+                    setTimeout(() => {
+                        if (!recognizing) recognition.start();
+                    }, 100);
+                }
+                // Always update status
+                if (!listening) {
+                    statusDiv.innerHTML = `<div style="color:#888;">Stopped listening.</div>`;
+                }
             };
 
             recognition.onerror = (e) => {
@@ -114,11 +120,11 @@
         };
 
         stopBtn.onclick = () => {
-            listening = false;
+            listening = false; // Set this first!
             recordBtn.disabled = false;
             stopBtn.disabled = true;
             if (recognition) recognition.stop();
-            statusDiv.innerHTML = ""; // Clear status and processing gif/text
+            statusDiv.innerHTML = ""; // Optionally clear status
         };
 
         class Bar {
