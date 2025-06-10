@@ -94,3 +94,33 @@ audio {
     width: 380px;
     height: 200px;
 }
+
+.status-line {
+    margin-top: 8px;
+    margin-bottom: 0;
+    text-align: center;
+}
+
+.status-line:first-child {
+    margin-top: 0;
+}
+
+.focus-status {
+    color: #ff9800;
+}
+
+.listening-status {
+    color: #00bcd4;
+}
+
+.processing-status {
+    color: #4caf50;
+}
+
+.you-said-status {
+    color: #fff;
+}
+
+.not-listening-status {
+    color: #888;
+}

@@ -39,57 +39,44 @@ def listen(audio_path):
     return transcribed_text.strip()
 
 def respond(text, convohistory=None): 
+    print("[DEBUG] Backend called with text:", text)
+    print("[DEBUG] convohistory at start:", convohistory)
+    
     if convohistory is None:
         convohistory = []
 
-    convohistory.append({"role": "user", "content": text.strip()})
+    # Default values
+    in_focus_mode = False
+    history = convohistory
 
-    def get_response(text, convohistory):
-        text = text.lower()
-        url = "https://ai.hackclub.com/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        base = (
-            "You are Jarvis, a witty and slightly snarky AI assistant. "
-            "Your user is an intelligent teenager who you sometimes tease, but you are never mean or hurtful. "
-            "Your responses are being spoken aloud. "
-            "Be concise and clear, but answer helpfully and completely. "
-            "Do not include stage directions, tone descriptions, or bracketed instructions. "
-            "Do not mention sensitive topics like politics, religion, or violence. "
-            "You are not a therapist, and you do not give advice. "
-            "You are helpful, but you are not overly polite. "
-        )
+    # If convohistory is a dict, extract the flag and the history list
+    if isinstance(convohistory, dict):
+        in_focus_mode = convohistory.get("in_focus_mode", False)
+        history = convohistory.get("history", [])
+    
+    alterations = get_alterations(text, convohistory)
 
-        if "focus" in text and ("begin" in text or "activate" in text or "start" in text): 
-            # custom system prompt for focus mode
-            url = "https://ai.hackclub.com/chat/completions"
-            headers = {"Content-Type": "application/json"}
-            data = {
-                "messages": [
-                    {"role": "system", "content": base + "The user just activated focus mode, and you have just said 'Activating Focus mode. Please stand by...'. Conclude with a witty, sarcastic, or motivational one-liner about focusing or being productive."},
-                    {"role": "user", "content": text}
-                ]
-            }
-            response = requests.post(url, headers=headers, json=data)
-            return response.json()["choices"][0]["message"]["content"]
+    ai_response = get_response(text, history, alterations)
 
-        data = {
-            "messages": [{"role": "system", "content": base}] + convohistory
-        }
-
-        response = requests.post(url, headers=headers, json=data)
-        return response.json()["choices"][0]["message"]["content"]
-
-    ai_response = get_response(text, convohistory)
     print(f"AI Response: '{ai_response}'")
 
     if not ai_response or not ai_response.strip():
-        return {
-            "text": "Sorry, I couldn't generate a response.",
-            "audio_url": None, 
-            "convohistory": convohistory
-        }
+        # Return the dict structure if that's what you received
+        if isinstance(convohistory, dict):
+            convohistory["history"] = history
+            return {
+                "text": "Sorry, I couldn't generate a response.",
+                "audio_url": None, 
+                "convohistory": convohistory
+            }
+        else:
+            return {
+                "text": "Sorry, I couldn't generate a response.",
+                "audio_url": None, 
+                "convohistory": history
+            }
     
-    convohistory.append({"role": "assistant", "content": ai_response})
+    history.append({"role": "assistant", "content": ai_response})
 
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     os.makedirs(output_folder, exist_ok=True)
@@ -133,15 +120,86 @@ def respond(text, convohistory=None):
     if ai_response.startswith('"') and ai_response.endswith('"'):
         ai_response = ai_response[1:-1].strip()
 
-    return {
-        "text": ai_response, 
-        "audio_url": f"/audio_output/{filename}",
-        "convohistory": convohistory
-    }
+    print("Returning in_focus_mode:", convohistory.get("in_focus_mode"))
+    print("[DEBUG] Returning convohistory:", convohistory)
+
+    # When returning, update the dict if needed
+    if isinstance(convohistory, dict):
+        convohistory["history"] = history
+        return {
+            "text": ai_response, 
+            "audio_url": f"/audio_output/{filename}",
+            "convohistory": convohistory
+        }
+    else:
+        return {
+            "text": ai_response, 
+            "audio_url": f"/audio_output/{filename}",
+            "convohistory": history
+        }
 
 def remove_markdown(text): 
     clean = re.sub(r'(\*{1,2}|_{1,2}|~{2}|`{1,3})', '', text)
     return clean
+
+def get_response(text, convohistory, alterations):
+        text = text.lower()
+        url = "https://ai.hackclub.com/chat/completions"
+        headers = {"Content-Type": "application/json"}
+
+        data = {
+            "messages": [{"role": "system", "content": alterations}] + convohistory
+        }
+
+        response = requests.post(url, headers=headers, json=data)
+        return response.json()["choices"][0]["message"]["content"]
+
+def get_alterations(text, convohistory):
+    text = text.lower()
+    base = (
+        "You are Jarvis, a witty and slightly snarky AI assistant. "
+        "Your user is an intelligent teenager who you sometimes tease, but you are never mean or hurtful. "
+        "Your responses are being spoken aloud. "
+        "Be concise and clear, but answer helpfully and completely. "
+        "Do not include stage directions, tone descriptions, or bracketed instructions. "
+        "Do not mention sensitive topics like politics, religion, or violence. "
+        "You are not a therapist, and you do not give advice. "
+        "You are helpful, but you are not overly polite. "
+    )
+
+    # Activate focus mode
+    if ("focus" in text or "focusing" in text) and ("begin" in text or "activate" in text or "start" in text):
+        if isinstance(convohistory, dict):
+            convohistory["in_focus_mode"] = True
+        # Only for the activation command, add the extra instruction
+        return base + (
+            "The user just activated focus mode. "
+            "Acknowledge activation with a witty, sarcastic, or motivational one-liner about focusing or being productive."
+        )
+
+    # Deactivate focus mode
+    if ("focus" in text or "focusing" in text) and ("end" in text or "deactivate" in text or "stop" in text):
+        if isinstance(convohistory, dict):
+            convohistory["in_focus_mode"] = False
+        return base + (
+            "Focus mode has been deactivated. "
+            "You can now answer any questions as usual, and your witty/snarky personality is back."
+        )
+
+    # If focus mode is active, restrict responses
+    in_focus_mode = False
+    if isinstance(convohistory, dict):
+        in_focus_mode = convohistory.get("in_focus_mode", False)
+
+    if in_focus_mode:
+        return base + (
+            "Focus mode is active. Only answer questions related to work, study, or productivity. "
+            "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. "
+            "Suppress playful/snarky responses and use a more serious, concise tone."
+        )
+
+    # Default
+    return base
 
 '''
 import edge_tts, asyncio
