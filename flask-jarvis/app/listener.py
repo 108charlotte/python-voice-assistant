@@ -118,6 +118,15 @@ def respond(text, convohistory=None):
             "convohistory": convohistory
         }
 
+    # clean up old audio output files
+    for fname in os.listdir(output_folder):
+        fpath = os.path.join(output_folder, fname)
+        if os.path.isfile(fpath) and fname != filename:
+            try:
+                os.remove(fpath)
+            except Exception as e:
+                print(f"Could not delete {fpath}: {e}")
+
     ai_response = ai_response.strip()
     if ai_response.startswith('"') and ai_response.endswith('"'):
         ai_response = ai_response[1:-1].strip()
