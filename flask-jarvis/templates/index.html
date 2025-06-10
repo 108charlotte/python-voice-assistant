@@ -11,19 +11,21 @@
 </head>
 <body>
     <h2>JARVIS Voice Assistant</h2>
-    
-    <button id="record">Bother me</button>
-    <button id="stop">Shut Up</button>
-    <br><br>
-    <div id="status"></div>
-    <audio id="voice" controls></audio>
-    <canvas id="audio_visualizer" width="400" height="200"></canvas>
-
+    <div id="jarvis-container">
+        <div id="button-row">
+            <button id="record">Bother me</button>
+            <button id="stop">Shut Up</button>
+        </div>
+        <div id="status"><div style="color:#00bcd4;">Listening...</div></div>
+        <audio id="voice" controls></audio>
+        <canvas id="audio_visualizer" width="400" height="200"></canvas>
+    </div>
     <script>
         let convohistory = [];
         let recognizing = false; 
         let listening = false;
         let hasUserSpoken = false; 
+        let lastUserPrompt = "";
 
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recordBtn = document.getElementById('record');
@@ -41,14 +43,19 @@
             recognition.continuous = false;
 
             recognition.onstart = () => {
-                recognizing = true; 
+                recognizing = true;
+                statusDiv.innerHTML =
+                    `<div style="color:#00bcd4;">Listening...</div>` +
+                    (lastUserPrompt ? `<div style="margin-top:8px;">You said: "${lastUserPrompt}"</div>` : "");
                 console.log("Recognition started");
             };
 
             recognition.onresult = async (event) => {
-                console.log("Recognition result:", event);
                 const transcript = event.results[0][0].transcript;
-                statusDiv.innerHTML = `You said: "${transcript}"<br><br>Processing... <img src="https://i.imgur.com/llF5iyg.gif" alt="Loading" style="width:24px;height:24px;vertical-align:middle;">`;
+                lastUserPrompt = transcript;
+                statusDiv.innerHTML =
+                    `<div style="color:#4caf50;">Processing... <img src="https://i.imgur.com/llF5iyg.gif" alt="Loading" style="width:24px;height:24px;vertical-align:middle;"></div>` +
+                    `<div style="margin-top:8px;">You said: "${transcript}"</div>`;
                 const response = await fetch('/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -58,7 +65,9 @@
                 convohistory = result.convohistory || [];
                 audio.src = result.audio_url + '?v=' + Date.now();
 
-                statusDiv.innerHTML = `You said: "${transcript}"`
+                statusDiv.innerHTML =
+                    `<div style="color:#00bcd4;">Listening...</div>` +
+                    `<div style="margin-top:8px;">You said: "${transcript}"</div>`;
 
                 setTimeout(() => {
                     audio.play();
@@ -100,6 +109,7 @@
                 recognition.start();
                 recordBtn.disabled = true;
                 stopBtn.disabled = false;
+                
             }
         };
 
