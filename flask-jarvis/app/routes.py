@@ -14,11 +14,13 @@ def home():
 def upload_audio(): 
     if request.is_json and "transcript" in request.json:
         transcript = request.json["transcript"]
-        result = respond(transcript)
+        convohistory = request.json.get("convohistory", [])  # <-- get convohistory from frontend
+        result = respond(transcript, convohistory)           # <-- pass it to respond
         return jsonify({
             "transcript": transcript,
             "response": result["text"],
-            "audio_url": result["audio_url"]
+            "audio_url": result["audio_url"],
+            "convohistory": result["convohistory"]           # <-- return updated convohistory
         }), 200
     
     if 'audio' not in request.files: 

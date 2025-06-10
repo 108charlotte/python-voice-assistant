@@ -20,6 +20,8 @@
     <canvas id="audio_visualizer" width="400" height="200"></canvas>
 
     <script>
+        let convohistory = [];
+
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const recordBtn = document.getElementById('record');
         const stopBtn = document.getElementById('stop');
@@ -53,9 +55,10 @@
                 const response = await fetch('/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ transcript })
+                    body: JSON.stringify({ transcript, convohistory })
                 });
                 const result = await response.json();
+                convohistory = result.convohistory || [];
                 audio.src = result.audio_url + '?v=' + Date.now();
 
                 setTimeout(() => {

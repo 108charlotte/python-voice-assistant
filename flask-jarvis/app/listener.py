@@ -37,8 +37,13 @@ def listen(audio_path):
     print("Transcribed Text:", transcribed_text.strip())
     return transcribed_text.strip()
 
-def respond(text): 
-    def get_response(text):
+def respond(text, convohistory=None): 
+    if convohistory is None:
+        convohistory = []
+
+    convohistory.append({"role": "user", "content": text.strip()})
+
+    def get_response(text, convohistory):
         text = text.lower()
         url = "https://ai.hackclub.com/chat/completions"
         headers = {"Content-Type": "application/json"}
@@ -68,22 +73,23 @@ def respond(text):
             return response.json()["choices"][0]["message"]["content"]
 
         data = {
-            "messages": [
-                {"role": "user", "content": text}, 
-                {"role": "system", "content": base + "You sometimes makes witty jokes."}]
+            "messages": [{"role": "system", "content": base}] + convohistory
         }
 
         response = requests.post(url, headers=headers, json=data)
         return response.json()["choices"][0]["message"]["content"]
 
-    ai_response = get_response(text)
+    ai_response = get_response(text, convohistory)
     print(f"AI Response: '{ai_response}'")
 
     if not ai_response or not ai_response.strip():
         return {
             "text": "Sorry, I couldn't generate a response.",
-            "audio_url": None
+            "audio_url": None, 
+            "convohistory": convohistory
         }
+    
+    convohistory.append({"role": "assistant", "content": ai_response})
 
     output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     os.makedirs(output_folder, exist_ok=True)
@@ -108,7 +114,8 @@ def respond(text):
         print("edge-tts error:", e)
         return {
             "text": ai_response,
-            "audio_url": None
+            "audio_url": None, 
+            "convohistory": convohistory
         }
 
     ai_response = ai_response.strip()
@@ -117,7 +124,8 @@ def respond(text):
 
     return {
         "text": ai_response, 
-        "audio_url": f"/audio_output/{filename}"
+        "audio_url": f"/audio_output/{filename}",
+        "convohistory": convohistory
     }
 
 def remove_markdown(text): 
