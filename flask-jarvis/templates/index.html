@@ -47,6 +47,7 @@
 
             recognition.onstart = () => {
                 recognizing = true;
+                console.log("Recognition started, recognizing:", recognizing, "listening:", listening);
                 let focusStatus = convohistory.in_focus_mode
                     ? `<div class="status-line focus-status">Focus Mode: ON</div>`
                     : "";
@@ -54,7 +55,7 @@
                 statusDiv.innerHTML =
                     focusStatus +
                     `<div class="status-line listening-status">Listening...</div>` +
-                    `<div class="status-line you-said-status">${lastUserPrompt ? "You said: \"" + lastUserPrompt + "\"" : "Say something to interact with JARVIS"}</div>`;
+                    `<div class="status-line you-said-status">${lastUserPrompt ? "You said: \"" + lastUserPrompt + "\"" : "<div class=\"not-listening-status\">Say something to interact with JARVIS</div>"}</div>`;
                 console.log("Recognition started");
             };
 
@@ -64,6 +65,12 @@
                 const lastAssistant = convohistory.history.length >= 2
                     ? convohistory.history[convohistory.history.length - 2]
                     : null;
+
+                // tries to prevent JARVIS from hearing itself when no external mic plugged in (using computer speakers)
+                if (lastAssistant && lastAssistant.content && (lastAssistant.content.toLowerCase().includes(transcript.toLowerCase()) || transcript.toLowerCase().includes(lastAssistant.content.toLowerCase()))) {
+                    console.log("[DEBUG] Transcript matches/contained in last assistant message, skipping backend call.");
+                    return; 
+                }
 
             if (
                 (!convohistory.history.length ||
@@ -89,35 +96,44 @@ console.log("[DEBUG] onresult fired:", transcript, Date.now());
     convohistory = result.convohistory || convohistory;
     audio.src = result.audio_url + '?v=' + Date.now();
 
-    // Always show focus status after backend response
-    let focusStatus = convohistory.in_focus_mode
-        ? `<div class="status-line focus-status">Focus Mode: ON</div>`
-        : "";
+// Update status to show assistant is speaking
+let focusStatus = convohistory.in_focus_mode
+    ? `<div class="status-line focus-status">Focus Mode: ON</div>`
+    : "";
 
+statusDiv.innerHTML =
+    focusStatus +
+    `<div class="status-line not-listening-status">Not listening.</div>` +
+    `<div class="status-line you-said-status">You said: "${lastUserPrompt}"</div>`;
+
+if (result.audio_url) {
+    audio.src = result.audio_url + '?v=' + Date.now();
     setTimeout(() => {
-        audio.play();
+        audio.play().catch(e => {
+            console.log("Audio play error:", e);
+            audio.onended(); // fallback if play fails
+        });
     }, 1000);
-
-    if (!result.audio_url) {
-        audio.onended(); // Manually trigger if no audio
-    }
+} else {
+    audio.onended(); // Manually trigger if no audio
+}
 };
 
             recognition.onend = () => {
                 recognizing = false;
-                console.log("Recognition ended");
+                console.log("Recognition ended, recognizing:", recognizing, "listening:", listening);
+
                 let focusStatus = convohistory.in_focus_mode
                     ? `<div class="status-line focus-status">Focus Mode: ON</div>`
                     : "";
 
-                if (!listening) {
-                    statusDiv.innerHTML = `<div class="status-line not-listening-status">Not listening.</div>`;
-                } else if (audio.paused && audio.currentTime === 0) {
-                    // Only restart if audio is not playing and hasn't started
-                    statusDiv.innerHTML =
-                        focusStatus +
-                        `<div class="status-line not-listening-status">Not listening.</div>` +
-                        `<div class="status-line you-said-status">${lastUserPrompt ? "You said: " + lastUserPrompt : ""}</div>`;
+                statusDiv.innerHTML =
+                    focusStatus +
+                    `<div class="status-line not-listening-status">Not listening.</div>` +
+                    `<div class="status-line you-said-status">${lastUserPrompt ? "You said: " + lastUserPrompt : ""}</div>`;
+
+                // If still listening and recognition is not running, and audio is not playing, restart recognition
+                if (listening && !recognizing && (audio.paused || audio.ended)) {
                     setTimeout(() => {
                         try {
                             recognition.start();
@@ -126,7 +142,6 @@ console.log("[DEBUG] onresult fired:", transcript, Date.now());
                         }
                     }, 1000);
                 }
-                // Otherwise, do nothing—audio.onended will handle restart
 };
 
             recognition.onerror = (e) => {
@@ -233,15 +248,16 @@ console.log("[DEBUG] onresult fired:", transcript, Date.now());
             animate();
         };
         audio.onended = () => {
-    if (listening && !recognizing) {
-        setTimeout(() => {
-            try {
-                recognition.start();
-            } catch (e) {
-                console.log("Recognition start error:", e);
+            console.log("Audio ended, recognizing:", recognizing, "listening:", listening);
+            if (listening && !recognizing) {
+                setTimeout(() => {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.log("Recognition start error:", e);
+                    }
+                }, 1000);
             }
-        }, 2000); // Short delay to ensure audio is fully done
-    }
 };
         animate(); 
     </script>

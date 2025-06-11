@@ -123,18 +123,24 @@ def respond(text, convohistory=None):
     print("Returning in_focus_mode:", convohistory.get("in_focus_mode"))
     print("[DEBUG] Returning convohistory:", convohistory)
 
+    audio_file_path = os.path.join(output_folder, filename)
+    if not os.path.exists(audio_file_path):
+        audio_url = None
+    else:
+        audio_url = f"/audio_output/{filename}"
+
     # When returning, update the dict if needed
     if isinstance(convohistory, dict):
         convohistory["history"] = history
         return {
             "text": ai_response, 
-            "audio_url": f"/audio_output/{filename}",
+            "audio_url": audio_url,
             "convohistory": convohistory
         }
     else:
         return {
             "text": ai_response, 
-            "audio_url": f"/audio_output/{filename}",
+            "audio_url": audio_url,
             "convohistory": history
         }
 
@@ -165,6 +171,7 @@ def get_alterations(text, convohistory):
         "Do not mention sensitive topics like politics, religion, or violence. "
         "You are not a therapist, and you do not give advice. "
         "You are helpful, but you are not overly polite. "
+        "Your capabilities include all those of an AI chatbot in addition to the ability to activate focus mode. "
     )
 
     # Activate focus mode
@@ -174,7 +181,9 @@ def get_alterations(text, convohistory):
         # Only for the activation command, add the extra instruction
         return base + (
             "The user just activated focus mode. "
-            "Acknowledge activation with a witty, sarcastic, or motivational one-liner about focusing or being productive."
+            "You have to be serious and focused now. "
+            "You must say something like: 'Focus mode activated.'"
+            "Then acknowledge activation with a witty, sarcastic, or motivational one-liner about focusing or being productive."
         )
 
     # Deactivate focus mode

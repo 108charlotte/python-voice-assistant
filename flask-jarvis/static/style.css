@@ -122,5 +122,5 @@ audio {
 }
 
 .not-listening-status {
-    color: #888;
+    color: #888 !important; 
 }
