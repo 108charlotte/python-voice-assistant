@@ -146,13 +146,15 @@ if (result.audio_url) {
 
             recognition.onerror = (e) => {
                 console.log("Recognition error:", e);
-                if (e.error === "no-speech" && listening) {
-                    setTimeout(() => recognition.start(), 500);
-                } else if (e.error === "network" && listening) {
-                    // Try to restart after a short delay
-                    setTimeout(() => recognition.start(), 1500);
+                if (listening) {
+                    setTimeout(() => {
+                        try {
+                            recognition.start();
+                        } catch (err) {
+                            console.log("Recognition start error:", err);
+                        }
+                    }, 1000);
                 } else {
-                    listening = false;
                     recordBtn.disabled = false;
                     stopBtn.disabled = true;
                 }
