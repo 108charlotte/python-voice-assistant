@@ -1,4 +1,3 @@
-import vosk
 import json
 import requests
 import wave
@@ -9,6 +8,10 @@ import edge_tts
 import re
 import uuid
 import time
+
+os.environ["VOSK_LOG_LEVEL"] = "0"
+
+import vosk
 
 # load vosk model
 model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
@@ -35,13 +38,9 @@ def listen(audio_path):
         final_result = json.loads(recognizer.FinalResult())
         transcribed_text += final_result.get("text", "")
 
-    print("Transcribed Text:", transcribed_text.strip())
     return transcribed_text.strip()
 
 def respond(text, convohistory=None): 
-    print("[DEBUG] Backend called with text:", text)
-    print("[DEBUG] convohistory at start:", convohistory)
-    
     if convohistory is None:
         convohistory = []
 
@@ -53,17 +52,22 @@ def respond(text, convohistory=None):
     if isinstance(convohistory, dict):
         in_focus_mode = convohistory.get("in_focus_mode", False)
         history = convohistory.get("history", [])
-    
+
     alterations = get_alterations(text, convohistory)
 
-    ai_response = get_response(text, history, alterations)
+    if ("focus" in text.lower() or "focusing" in text.lower()) and (
+        "end" in text.lower() or "deactivate" in text.lower() or "stop" in text.lower()
+    ):
+        if isinstance(convohistory, dict):
+            convohistory["in_focus_mode"] = False
 
-    print(f"AI Response: '{ai_response}'")
+    ai_response = get_response(text, history, alterations)
 
     if not ai_response or not ai_response.strip():
         # Return the dict structure if that's what you received
         if isinstance(convohistory, dict):
             convohistory["history"] = history
+
             return {
                 "text": "Sorry, I couldn't generate a response.",
                 "audio_url": None, 
@@ -89,7 +93,6 @@ def respond(text, convohistory=None):
     ai_response = re.sub(r'\bkiddo\b', '', ai_response, flags=re.IGNORECASE)
     ai_response = re.sub(r'\bkid\b', '', ai_response, flags=re.IGNORECASE)
 
-    print(f"[INFO] Synthesizing with edge-tts: {ai_response}")
     try:
         communicate = edge_tts.Communicate(
             ai_response,
@@ -119,9 +122,6 @@ def respond(text, convohistory=None):
     ai_response = ai_response.strip()
     if ai_response.startswith('"') and ai_response.endswith('"'):
         ai_response = ai_response[1:-1].strip()
-
-    print("Returning in_focus_mode:", convohistory.get("in_focus_mode"))
-    print("[DEBUG] Returning convohistory:", convohistory)
 
     audio_file_path = os.path.join(output_folder, filename)
     if not os.path.exists(audio_file_path):
@@ -178,7 +178,6 @@ def get_alterations(text, convohistory):
     if ("focus" in text or "focusing" in text) and ("begin" in text or "activate" in text or "start" in text):
         if isinstance(convohistory, dict):
             convohistory["in_focus_mode"] = True
-        # Only for the activation command, add the extra instruction
         return base + (
             "The user just activated focus mode. "
             "You have to be serious and focused now. "
@@ -190,6 +189,7 @@ def get_alterations(text, convohistory):
     if ("focus" in text or "focusing" in text) and ("end" in text or "deactivate" in text or "stop" in text):
         if isinstance(convohistory, dict):
             convohistory["in_focus_mode"] = False
+            print("[DEBUG] Set in_focus_mode to False")
         return base + (
             "Focus mode has been deactivated. "
             "You can now answer any questions as usual, and your witty/snarky personality is back."

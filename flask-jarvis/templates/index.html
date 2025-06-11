@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
 </head>
-</head>
 <body>
     <h2>JARVIS Voice Assistant</h2>
     <div id="jarvis-container">
@@ -19,121 +18,257 @@
         <div id="status"><div style="color:#888;">Click Bother me to start</div></div>
         <audio id="voice" controls></audio>
         <canvas id="audio_visualizer" width="400" height="200"></canvas>
+        <div id="todo-container">
+            <h3>Todo List</h3>
+            <ul id="todo-list"></ul>
+        </div>
     </div>
     <script>
-        let convohistory = {
-    history: [],
-    in_focus_mode: false
-};
-        let recognizing = false; 
-        let listening = false;
-        let hasUserSpoken = false; 
-        let lastUserPrompt = "";
+        document.addEventListener("DOMContentLoaded", function() {
+            let convohistory = {
+                history: [],
+                in_focus_mode: false
+            };
+            
+            let recognizing = false; 
+            let listening = false;
+            let hasUserSpoken = false; 
+            let lastUserPrompt = "";
+            let todoList = []
 
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const recordBtn = document.getElementById('record');
-        const stopBtn = document.getElementById('stop');
-        const statusDiv = document.getElementById('status');
-        const audio = document.getElementById("voice");
-        const canvas = document.getElementById("audio_visualizer");
-        const ctx = canvas.getContext("2d");
-        let recognition;
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            const recordBtn = document.getElementById('record');
+            const stopBtn = document.getElementById('stop');
+            const statusDiv = document.getElementById('status');
+            const audio = document.getElementById("voice");
+            const canvas = document.getElementById("audio_visualizer");
+            const ctx = canvas.getContext("2d");
+            let recognition;
 
-        if (SpeechRecognition) {
-            recognition = new SpeechRecognition();
-            recognition.lang = 'en-US';
-            recognition.interimResults = false;
-            recognition.continuous = false;
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                recognition.continuous = false;
 
-            recognition.onstart = () => {
-                recognizing = true;
-                console.log("Recognition started, recognizing:", recognizing, "listening:", listening);
-                let focusStatus = convohistory.in_focus_mode
-                    ? `<div class="status-line focus-status">Focus Mode: ON</div>`
-                    : "";
+                recognition.onstart = () => {
+                    recognizing = true;
+                    console.log("%cRecognition started, recognizing:", "color: gray", recognizing, "listening:", listening);
+                    let focusStatus = convohistory.in_focus_mode
+                        ? `<div class="status-line focus-status">Focus Mode: ON</div>`
+                        : "";
 
-                statusDiv.innerHTML =
-                    focusStatus +
-                    `<div class="status-line listening-status">Listening...</div>` +
-                    `<div class="status-line you-said-status">${lastUserPrompt ? "You said: \"" + lastUserPrompt + "\"" : "<div class=\"not-listening-status\">Say something to interact with JARVIS</div>"}</div>`;
-                console.log("Recognition started");
+                    statusDiv.innerHTML =
+                        focusStatus +
+                        `<div class="status-line listening-status">Listening...</div>` +
+                        `<div class="status-line you-said-status">${lastUserPrompt ? `You said: "${lastUserPrompt}"` : `<div class="not-listening-status">Say something to interact with JARVIS</div>`}</div>`;
+                };
+
+                recognition.onresult = async (event) => {
+                    const transcript = event.results[0][0].transcript;
+                    lastUserPrompt = transcript;
+                    const lastAssistant = convohistory.history.length >= 2
+                        ? convohistory.history[convohistory.history.length - 2]
+                        : null;
+
+                    // tries to prevent JARVIS from hearing itself when no external mic plugged in (using computer speakers)
+                    if (
+                        lastAssistant &&
+                        lastAssistant.content &&
+                        (
+                            lastAssistant.content.toLowerCase().includes(transcript.toLowerCase()) ||
+                            transcript.toLowerCase().includes(lastAssistant.content.toLowerCase())
+                        )
+                    ) {
+                        console.log("[DEBUG] Transcript matches/contained in last assistant message, skipping backend call.");
+                        return;
+                    }
+
+                    if (
+                        (!convohistory.history.length ||
+                            convohistory.history[convohistory.history.length - 1].role !== "user" ||
+                            convohistory.history[convohistory.history.length - 1].content !== transcript) &&
+                        (!lastAssistant || lastAssistant.content !== transcript)
+                    ) {
+                        convohistory.history.push({ role: "user", content: transcript });
+                    }
+
+                    statusDiv.innerHTML =
+                        `<div class="status-line processing-status">Processing... <img src="https://i.imgur.com/llF5iyg.gif" style="width:24px;height:24px;vertical-align:middle;"></div>` +
+                        `<div style="margin-top:8px;">You said: "${transcript}"</div>`;
+
+                    try {
+                        const response = await fetch('/upload', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ transcript, convohistory })
+                        });
+                        const result = await response.json();
+                        convohistory = result.convohistory || convohistory;
+                        updateTodoVisibility();
+                        audio.src = result.audio_url + '?v=' + Date.now();
+
+                        // Update status to show assistant is speaking
+                        let focusStatus = convohistory.in_focus_mode
+                            ? `<div class="status-line focus-status">Focus Mode: ON</div>`
+                            : "";
+
+                        statusDiv.innerHTML =
+                            focusStatus +
+                            `<div class="status-line not-listening-status">Not listening.</div>` +
+                            `<div class="status-line you-said-status">You said: "${lastUserPrompt}"</div>`;
+
+                        if (result.audio_url) {
+                            audio.src = result.audio_url + '?v=' + Date.now();
+                            setTimeout(() => {
+                                audio.play().catch(e => {
+                                    console.log("Audio play error:", e);
+                                    audio.onended(); // fallback if play fails
+                            });
+                        }, 1000);
+                        } else {
+                            audio.onended(); // Manually trigger if no audio
+                        }
+                    } catch (err) {
+                        console.error("Error during fetch or JSON parsing:", err);
+                    }
+                };
+
+                recognition.onend = () => {
+                    recognizing = false;
+                    console.log("%cRecognition ended, recognizing:", "color: gray", recognizing, "listening:", listening);
+
+                    let focusStatus = convohistory.in_focus_mode
+                        ? `<div class="status-line focus-status">Focus Mode: ON</div>`
+                        : "";
+
+                    statusDiv.innerHTML =
+                        focusStatus +
+                        `<div class="status-line not-listening-status">Not listening.</div>` +
+                        `<div class="status-line you-said-status">${lastUserPrompt ? `You said: "${lastUserPrompt}"` : ""}</div>`;
+
+                    // If still listening and recognition is not running, and audio is not playing, restart recognition
+                    if (listening && !recognizing && (audio.paused || audio.ended)) {
+                        setTimeout(() => {
+                            try {
+                                recognition.start();
+                            } catch (e) {
+                                console.log("Recognition start error:", e);
+                            }
+                        }, 1000);
+                    }
+                };
+
+                recognition.onerror = (e) => {
+                    console.log("%cRecognition error:", "color: gray", e);
+                    if (listening) {
+                        setTimeout(() => {
+                            try {
+                                recognition.start();
+                            } catch (err) {
+                                console.log("Recognition start error:", err);
+                            }
+                        }, 1000);
+                    } else {
+                        recordBtn.disabled = false;
+                        stopBtn.disabled = true;
+                    }
+                };
+            } else {
+                alert("Web Speech API not supported.");
+            }
+
+            recordBtn.onclick = () => {
+                if (!SpeechRecognition) {
+                    alert("Web Speech API not supported.");
+                    return;
+                }
+                if (!recognizing) {
+                    listening = true;
+                    recognition.start();
+                    recordBtn.disabled = true;
+                    stopBtn.disabled = false;
+                    
+                }
             };
 
-            recognition.onresult = async (event) => {
-                const transcript = event.results[0][0].transcript;
-                lastUserPrompt = transcript;
-                const lastAssistant = convohistory.history.length >= 2
-                    ? convohistory.history[convohistory.history.length - 2]
-                    : null;
+            stopBtn.onclick = () => {
+                listening = false;
+                recordBtn.disabled = false;
+                stopBtn.disabled = true;
+                if (recognition) recognition.stop();
+                audio.pause();
+                audio.currentTime = 0; 
+                statusDiv.innerHTML = ""; 
+            };
 
-                // tries to prevent JARVIS from hearing itself when no external mic plugged in (using computer speakers)
-                if (lastAssistant && lastAssistant.content && (lastAssistant.content.toLowerCase().includes(transcript.toLowerCase()) || transcript.toLowerCase().includes(lastAssistant.content.toLowerCase()))) {
-                    console.log("[DEBUG] Transcript matches/contained in last assistant message, skipping backend call.");
-                    return; 
+            class Bar {
+                constructor(centerX, centerY, radius, angle, color, index) {
+                    this.centerX = centerX;
+                    this.centerY = centerY;
+                    this.radius = radius;
+                    this.angle = angle;
+                    this.length = 0;
+                    this.color = color;
+                    this.index = index;
                 }
-
-            if (
-                (!convohistory.history.length ||
-                convohistory.history[convohistory.history.length - 1].role !== "user" ||
-                convohistory.history[convohistory.history.length - 1].content !== transcript) &&
-                (!lastAssistant || lastAssistant.content !== transcript)
-            ) {
-                convohistory.history.push({ role: "user", content: transcript });
+                update(micInput) {
+                    this.length = (micInput / 255) * 60 + 10;
+                }
+                draw(context) {
+                    const x1 = this.centerX + Math.cos(this.angle) * this.radius;
+                    const y1 = this.centerY + Math.sin(this.angle) * this.radius;
+                    const x2 = this.centerX + Math.cos(this.angle) * (this.radius + this.length);
+                    const y2 = this.centerY + Math.sin(this.angle) * (this.radius + this.length);
+                    context.strokeStyle = this.color;
+                    context.lineWidth = 4;
+                    context.beginPath();
+                    context.moveTo(x1, y1);
+                    context.lineTo(x2, y2);
+                    context.stroke();
+                }
             }
-                console.log("[DEBUG] convohistory before fetch:", JSON.stringify(convohistory));
-console.log("[DEBUG] onresult fired:", transcript, Date.now());
 
-    statusDiv.innerHTML =
-        `<div class="status-line processing-status">Processing... <img src="https://i.imgur.com/llF5iyg.gif" style="width:24px;height:24px;vertical-align:middle;"></div>` +
-        `<div style="margin-top:8px;">You said: "${transcript}"</div>`;
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64; // You can adjust for more/less bars
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
 
-    const response = await fetch('/upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ transcript, convohistory })
-});
-    const result = await response.json();
-    convohistory = result.convohistory || convohistory;
-    audio.src = result.audio_url + '?v=' + Date.now();
+            const source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
 
-// Update status to show assistant is speaking
-let focusStatus = convohistory.in_focus_mode
-    ? `<div class="status-line focus-status">Focus Mode: ON</div>`
-    : "";
+            // Create an array to hold your Bar objects
+            const bars = [];
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = 40;
+            for (let i = 0; i < bufferLength; i++) {
+                const angle = (i / bufferLength) * Math.PI * 2;
+                const color = `hsl(${200 + (i * 2) % 60}, 100%, 60%)`; // blue/cyan spiral
+                bars.push(new Bar(centerX, centerY, radius, angle, color, i));
+            }
 
-statusDiv.innerHTML =
-    focusStatus +
-    `<div class="status-line not-listening-status">Not listening.</div>` +
-    `<div class="status-line you-said-status">You said: "${lastUserPrompt}"</div>`;
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                analyser.getByteFrequencyData(dataArray);
 
-if (result.audio_url) {
-    audio.src = result.audio_url + '?v=' + Date.now();
-    setTimeout(() => {
-        audio.play().catch(e => {
-            console.log("Audio play error:", e);
-            audio.onended(); // fallback if play fails
-        });
-    }, 1000);
-} else {
-    audio.onended(); // Manually trigger if no audio
-}
-};
+                for (let i = 0; i < bufferLength; i++) {
+                    bars[i].update(dataArray[i]);
+                    bars[i].draw(ctx);
+                }
+                requestAnimationFrame(animate);
+            }
 
-            recognition.onend = () => {
-                recognizing = false;
-                console.log("Recognition ended, recognizing:", recognizing, "listening:", listening);
+            audio.onplay = () => {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                animate();
+            };
 
-                let focusStatus = convohistory.in_focus_mode
-                    ? `<div class="status-line focus-status">Focus Mode: ON</div>`
-                    : "";
-
-                statusDiv.innerHTML =
-                    focusStatus +
-                    `<div class="status-line not-listening-status">Not listening.</div>` +
-                    `<div class="status-line you-said-status">${lastUserPrompt ? "You said: " + lastUserPrompt : ""}</div>`;
-
-                // If still listening and recognition is not running, and audio is not playing, restart recognition
-                if (listening && !recognizing && (audio.paused || audio.ended)) {
+            audio.onended = () => {
+                console.log("Audio ended, recognizing:", recognizing, "listening:", listening);
+                if (listening && !recognizing) {
                     setTimeout(() => {
                         try {
                             recognition.start();
@@ -142,126 +277,23 @@ if (result.audio_url) {
                         }
                     }, 1000);
                 }
-};
-
-            recognition.onerror = (e) => {
-                console.log("Recognition error:", e);
-                if (listening) {
-                    setTimeout(() => {
-                        try {
-                            recognition.start();
-                        } catch (err) {
-                            console.log("Recognition start error:", err);
-                        }
-                    }, 1000);
-                } else {
-                    recordBtn.disabled = false;
-                    stopBtn.disabled = true;
-                }
             };
-        } else {
-            alert("Web Speech API not supported.");
-        }
 
-        recordBtn.onclick = () => {
-            if (!SpeechRecognition) {
-                alert("Web Speech API not supported.");
-                return;
+            animate(); 
+
+            function updateTodoVisibility() {
+                const todoContainer = document.getElementById('todo-container');
+                if (convohistory.in_focus_mode) {
+                    todoContainer.style.display = "block";
+                } else {
+                    todoContainer.style.display = "none";
+                }
             }
-            if (!recognizing) {
-                listening = true;
-                recognition.start();
-                recordBtn.disabled = true;
-                stopBtn.disabled = false;
-                
-            }
-        };
 
-        stopBtn.onclick = () => {
-            listening = false;
-            recordBtn.disabled = false;
-            stopBtn.disabled = true;
-            if (recognition) recognition.stop();
-            audio.pause();
-            audio.currentTime = 0; 
-            statusDiv.innerHTML = ""; 
-        };
-
-        class Bar {
-            constructor(centerX, centerY, radius, angle, color, index) {
-                this.centerX = centerX;
-                this.centerY = centerY;
-                this.radius = radius;
-                this.angle = angle;
-                this.length = 0;
-                this.color = color;
-                this.index = index;
-            }
-            update(micInput) {
-                this.length = (micInput / 255) * 60 + 10;
-            }
-            draw(context) {
-                const x1 = this.centerX + Math.cos(this.angle) * this.radius;
-                const y1 = this.centerY + Math.sin(this.angle) * this.radius;
-                const x2 = this.centerX + Math.cos(this.angle) * (this.radius + this.length);
-                const y2 = this.centerY + Math.sin(this.angle) * (this.radius + this.length);
-                context.strokeStyle = this.color;
-                context.lineWidth = 4;
-                context.beginPath();
-                context.moveTo(x1, y1);
-                context.lineTo(x2, y2);
-                context.stroke();
-            }
-        }
-
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        const analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 64; // You can adjust for more/less bars
-        const bufferLength = analyser.frequencyBinCount;
-        const dataArray = new Uint8Array(bufferLength);
-
-        const source = audioCtx.createMediaElementSource(audio);
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
-
-        // Create an array to hold your Bar objects
-        const bars = [];
-        const centerX = canvas.width / 2;
-        const centerY = canvas.height / 2;
-        const radius = 40;
-        for (let i = 0; i < bufferLength; i++) {
-            const angle = (i / bufferLength) * Math.PI * 2;
-            const color = `hsl(${200 + (i * 2) % 60}, 100%, 60%)`; // blue/cyan spiral
-            bars.push(new Bar(centerX, centerY, radius, angle, color, i));
-        }
-
-        function animate() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            analyser.getByteFrequencyData(dataArray);
-
-            for (let i = 0; i < bufferLength; i++) {
-                bars[i].update(dataArray[i]);
-                bars[i].draw(ctx);
-            }
-            requestAnimationFrame(animate);
-        }
-        audio.onplay = () => {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            animate();
-        };
-        audio.onended = () => {
-            console.log("Audio ended, recognizing:", recognizing, "listening:", listening);
-            if (listening && !recognizing) {
-                setTimeout(() => {
-                    try {
-                        recognition.start();
-                    } catch (e) {
-                        console.log("Recognition start error:", e);
-                    }
-                }, 1000);
-            }
-};
-        animate(); 
+            console.log("Focus mode:", convohistory.in_focus_mode);
+            console.log("Focus mode after backend:", convohistory.in_focus_mode);
+            console.log("Todo container display:", document.getElementById('todo-container').style.display);
+        });
     </script>
 </body>
 </html>

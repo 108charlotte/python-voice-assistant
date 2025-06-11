@@ -20,7 +20,7 @@ def upload_audio():
             "transcript": transcript,
             "response": result["text"],
             "audio_url": result["audio_url"],
-            "convohistory": result["convohistory"]           # <-- return updated convohistory
+            "convohistory": result["convohistory"]
         }), 200
     
     if 'audio' not in request.files: 
