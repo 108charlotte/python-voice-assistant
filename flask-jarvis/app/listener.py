@@ -119,10 +119,19 @@ def respond(text, convohistory=None):
                     "audio_url": audio_url,
                     "convohistory": convohistory
                 }
-            elif parsed.get("add_task"):
-                task_description = parsed["add_task"]
-                convohistory["tasks"].append(task_description)
-                ai_response = f"Task added: {task_description}"
+            elif parsed.get("add_task") is not None:
+                task_description = parsed["add_task"].strip()
+                if (task_description
+                    and task_description.lower() not in [
+                        "task description", "describe the task", "something", "a task", "task"
+                    ]
+                    and not task_description.lower().startswith("task")):
+                    convohistory["tasks"].append(task_description)
+                    ai_response = f"Task added: {task_description}"
+                    if len(convohistory["tasks"]) > 1:
+                        ai_response += " You can scroll down to view all your tasks."
+                else:
+                    ai_response = "Please specify what task you'd like to add."
                 audio_url = generate_audio(ai_response)
                 return {
                     "text": ai_response,
@@ -213,16 +222,23 @@ def remove_markdown(text):
     return clean
 
 def get_response(text, convohistory, alterations):
-        text = text.lower()
-        url = "https://ai.hackclub.com/chat/completions"
-        headers = {"Content-Type": "application/json"}
+    text = text.lower()
+    url = "https://ai.hackclub.com/chat/completions"
+    headers = {"Content-Type": "application/json"}
 
-        data = {
-            "messages": [{"role": "system", "content": alterations}] + convohistory
-        }
+    data = {
+        "messages": [{"role": "system", "content": alterations}] + convohistory
+    }
 
-        response = requests.post(url, headers=headers, json=data)
-        return response.json()["choices"][0]["message"]["content"]
+    response = requests.post(url, headers=headers, json=data)
+    try:
+        response.raise_for_status()
+        result = response.json()
+        return result["choices"][0]["message"]["content"]
+    except Exception as e:
+        print("Error in get_response:", e)
+        print("Response text:", response.text)
+        return "Sorry, I couldn't process that."
 
 def get_alterations(text, convohistory):
     text = text.lower()
@@ -239,30 +255,29 @@ def get_alterations(text, convohistory):
         "If you believe the user is asking to activate focus mode (even indirectly), respond ONLY with the JSON: {\"activate_focus_mode\": true}. "
         "If you believe the user is asking to deactivate focus mode (using words like 'deactivate', 'end', or 'stop focus mode'), respond ONLY with the JSON: {\"deactivate_focus_mode\": true}. "
         "Do NOT deactivate focus mode unless the user clearly asks to. If the user asks for something off-topic, politely decline and remind them focus mode is on. "
-        "Otherwise, answer normally.", 
-        "If the user asks to add a task, respond ONLY with the JSON: {\"add_task\": \"task description\"}.", 
+        "Otherwise, answer normally. "
+        "If the user does not specify a task to add or remove, ask them to clarify what task they mean."
+        "If the user asks to add a task, respond ONLY with the JSON: {\"add_task\": \"task description\"}. "
         "If the user asks to remove a task, respond ONLY with the JSON: {\"remove_task\": \"task description\"}."
     )
 
-    # If focus mode is active, restrict responses
     in_focus_mode = False
     if isinstance(convohistory, dict):
         in_focus_mode = convohistory.get("in_focus_mode", False)
         tasks = convohistory.get("tasks", [])
     else: 
         tasks = []
-    
-    if tasks: 
-        base += f"\nThe user's current todo list is: {tasks}", 
-    
+
+    if tasks:
+        base += f"\nThe user's current todo list is: {tasks}."
+
     if in_focus_mode:
-        return base + (
-            "Focus mode is active. Only answer questions related to work, study, or productivity. ", 
-            "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. ", 
+        base += (
+            " Focus mode is active. Only answer questions related to work, study, or productivity. "
+            "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. "
             "Suppress playful/snarky responses and use a more serious, concise tone."
         )
 
-    # Default
     return base
 
 '''

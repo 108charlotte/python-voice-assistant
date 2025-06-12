@@ -138,7 +138,7 @@
                                     console.log("Audio play error:", e);
                                     audio.onended();
                                 });
-                            }, 1000);
+                            }, 200);
                         } else {
                             audio.onended();
                         }
@@ -176,12 +176,14 @@
                     // If still listening and recognition is not running, and audio is not playing, restart recognition
                     if (listening && !recognizing && (audio.paused || audio.ended)) {
                         setTimeout(() => {
-                            try {
-                                recognition.start();
-                            } catch (e) {
-                                console.log("Recognition start error:", e);
+                            if (!recognizing) {
+                                try {
+                                    recognition.start();
+                                } catch (e) {
+                                    console.log("Recognition start error:", e);
+                                }
                             }
-                        }, 200); // Try 200ms instead of 1000ms
+                        }, 200);
                     }
                 };
 
@@ -263,7 +265,6 @@
 
             const source = audioCtx.createMediaElementSource(audio);
             source.connect(analyser);
-            analyser.connect(audioCtx.destination);
 
             // Create an array to hold your Bar objects
             const bars = [];
@@ -276,36 +277,57 @@
                 bars.push(new Bar(centerX, centerY, radius, angle, color, i));
             }
 
+            let isAudioPlaying = false;
+
+            audio.onplay = () => {
+                isAudioPlaying = true;
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            };
+
+            audio.onpause = audio.onended = () => {
+                isAudioPlaying = false;
+            };
+
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-                analyser.getByteFrequencyData(dataArray);
 
-                for (let i = 0; i < bufferLength; i++) {
-                    bars[i].update(dataArray[i]);
-                    bars[i].draw(ctx);
+                if (isAudioPlaying) {
+                    analyser.getByteFrequencyData(dataArray);
+                    for (let i = 0; i < bufferLength; i++) {
+                        bars[i].update(dataArray[i]);
+                        bars[i].draw(ctx);
+                    }
+                } else {
+                    ctx.save();
+                    ctx.globalAlpha = 0.15;
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius + 10, 0, Math.PI * 2);
+                    ctx.strokeStyle = "#00baff";
+                    ctx.lineWidth = 6;
+                    ctx.stroke();
+                    ctx.restore();
                 }
+
                 requestAnimationFrame(animate);
             }
 
-            audio.onplay = () => {
-                if (audioCtx.state === 'suspended') audioCtx.resume();
-                animate();
-            };
+            // Start the animation loop once
+            animate();
 
             audio.onended = () => {
                 console.log("Audio ended, recognizing:", recognizing, "listening:", listening);
                 if (listening && !recognizing) {
                     setTimeout(() => {
-                        try {
-                            recognition.start();
-                        } catch (e) {
-                            console.log("Recognition start error:", e);
+                        if (!recognizing) {
+                            try {
+                                recognition.start();
+                            } catch (e) {
+                                console.log("Recognition start error:", e);
+                            }
                         }
-                    }, 200); // Try 200ms instead of 1000ms
+                    }, 200);
                 }
             };
-
-            animate(); 
 
             function updateTodoVisibility() {
                 const todoContainer = document.getElementById('todo-container');
