@@ -17,6 +17,9 @@ import vosk
 model_path = os.path.join(os.path.dirname(__file__), '..', 'model')
 vosk_model = vosk.Model(model_path)
 
+focus_response = 'Focus mode activated. I will only answer questions related to work, study, or productivity. Please avoid casual conversation.'
+deactivate_focus_response = 'Focus mode deactivated. You can now ask me anything.'
+
 def listen(audio_path): 
     recognizer = vosk.KaldiRecognizer(vosk_model, 16000)
 
@@ -41,30 +44,42 @@ def listen(audio_path):
     return transcribed_text.strip()
 
 def respond(text, convohistory=None): 
-    if convohistory is None:
-        convohistory = []
+    if convohistory is None or not isinstance(convohistory, dict):
+        convohistory = {"history": [], "in_focus_mode": False, "tasks": []}
+    if "tasks" not in convohistory:
+        convohistory["tasks"] = []
+    if "history" not in convohistory:
+        convohistory["history"] = []
+    if "in_focus_mode" not in convohistory:
+        convohistory["in_focus_mode"] = False
 
-    # Default values
-    in_focus_mode = False
-    history = convohistory
+    history = convohistory["history"]
 
-    # If convohistory is a dict, extract the flag and the history list
-    if isinstance(convohistory, dict):
-        in_focus_mode = convohistory.get("in_focus_mode", False)
-        history = convohistory.get("history", [])
+    lower_text = text.lower()
+    if "focus" in lower_text or "focusing" in lower_text:
+        if any(word in lower_text for word in ["end", "deactivate", "stop"]):
+            convohistory["in_focus_mode"] = False
+            ai_response = deactivate_focus_response
+            audio_url = generate_audio(ai_response)
+            return {
+                "text": ai_response,
+                "audio_url": audio_url,
+                "convohistory": convohistory
+            }
+        
+        if any(word in lower_text for word in ["begin", "activate", "start"]):
+            convohistory["in_focus_mode"] = True
+            ai_response = focus_response
+            audio_url = generate_audio(ai_response)
+            return {
+                "text": ai_response,
+                "audio_url": audio_url,
+                "convohistory": convohistory
+            }
 
     alterations = get_alterations(text, convohistory)
-
-    if ("focus" in text.lower() or "focusing" in text.lower()) and (
-        "end" in text.lower() or "deactivate" in text.lower() or "stop" in text.lower()
-    ):
-        if isinstance(convohistory, dict):
-            convohistory["in_focus_mode"] = False
-
     ai_response = get_response(text, history, alterations)
-
     if not ai_response or not ai_response.strip():
-        # Return the dict structure if that's what you received
         if isinstance(convohistory, dict):
             convohistory["history"] = history
 
@@ -79,55 +94,70 @@ def respond(text, convohistory=None):
                 "audio_url": None, 
                 "convohistory": history
             }
+        
+    # check if user activated focus mode indirectly
+    try: 
+        parsed = json.loads(ai_response)
+        if isinstance(parsed, dict): 
+            if parsed.get("activate_focus_mode"): 
+                convohistory["in_focus_mode"] = True
+                convohistory["history"] = history
+                ai_response = focus_response
+                audio_url = generate_audio(ai_response)
+                return {
+                    "text": ai_response,
+                    "audio_url": audio_url,
+                    "convohistory": convohistory
+                }
+            elif parsed.get("deactivate_focus_mode"):
+                convohistory["in_focus_mode"] = False
+                convohistory["history"] = history
+                ai_response = deactivate_focus_response
+                audio_url = generate_audio(ai_response)
+                return {
+                    "text": ai_response,
+                    "audio_url": audio_url,
+                    "convohistory": convohistory
+                }
+            elif parsed.get("add_task"):
+                task_description = parsed["add_task"]
+                convohistory["tasks"].append(task_description)
+                ai_response = f"Task added: {task_description}"
+                audio_url = generate_audio(ai_response)
+                return {
+                    "text": ai_response,
+                    "audio_url": audio_url,
+                    "convohistory": convohistory
+                }
+            elif parsed.get("remove_task"):
+                task_description = parsed["remove_task"]
+                convohistory["tasks"].remove(task_description)
+                ai_response = f"Task removed: {task_description}"
+                audio_url = generate_audio(ai_response)
+                return {
+                    "text": ai_response,
+                    "audio_url": audio_url,
+                    "convohistory": convohistory
+                }
+
+    except Exception:
+        pass
     
-    history.append({"role": "assistant", "content": ai_response})
-
-    output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
-    os.makedirs(output_folder, exist_ok=True)
-
-    filename = f"{uuid.uuid4()}.mp3"
-    output_path = os.path.join(output_folder, filename)
-
     ai_response = remove_markdown(ai_response).strip()
     ai_response = ai_response.replace("’", "'").replace("“", '"').replace("”", '"')
     ai_response = re.sub(r'\bkiddo\b', '', ai_response, flags=re.IGNORECASE)
     ai_response = re.sub(r'\bkid\b', '', ai_response, flags=re.IGNORECASE)
+    ai_response = re.sub(r'\bteenager\b', '', ai_response, flags=re.IGNORECASE)
 
-    try:
-        communicate = edge_tts.Communicate(
-            ai_response,
-            "en-GB-RyanNeural",
-            rate="+20%"
-        )
-        asyncio.run(communicate.save(output_path))
-    except Exception as e:
-        print("edge-tts error:", e)
-        return {
-            "text": ai_response,
-            "audio_url": None, 
-            "convohistory": convohistory
-        }
+    ai_response = re.sub(r'\s+', ' ', ai_response).strip()
 
-    # clean up old audio output files (older than 10 minutes)
-    now = time.time()
-    for fname in os.listdir(output_folder):
-        fpath = os.path.join(output_folder, fname)
-        if os.path.isfile(fpath) and fname != filename:
-            if now - os.path.getmtime(fpath) > 600:  # 600 seconds = 10 minutes
-                try:
-                    os.remove(fpath)
-                except Exception as e:
-                    print(f"Could not delete {fpath}: {e}")
-
-    ai_response = ai_response.strip()
     if ai_response.startswith('"') and ai_response.endswith('"'):
         ai_response = ai_response[1:-1].strip()
+    history.append({"role": "assistant", "content": ai_response})
 
-    audio_file_path = os.path.join(output_folder, filename)
-    if not os.path.exists(audio_file_path):
-        audio_url = None
-    else:
-        audio_url = f"/audio_output/{filename}"
+    audio_url = generate_audio(ai_response)
+
+    print("Generating audio for:", repr(ai_response))
 
     # When returning, update the dict if needed
     if isinstance(convohistory, dict):
@@ -143,6 +173,40 @@ def respond(text, convohistory=None):
             "audio_url": audio_url,
             "convohistory": history
         }
+    
+def generate_audio(text): 
+    output_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
+    os.makedirs(output_folder, exist_ok=True)
+
+    filename = f"{uuid.uuid4()}.mp3"
+    output_path = os.path.join(output_folder, filename)
+
+    try:
+        communicate = edge_tts.Communicate(
+            text,
+            "en-GB-RyanNeural",
+            rate="+20%"
+        )
+        asyncio.run(communicate.save(output_path))
+    except Exception as e:
+        print("edge-tts error:", e)
+        return None
+    
+    clean_output_folder(output_folder, filename)
+
+    return f"/audio_output/{filename}"
+
+def clean_output_folder(output_folder, filename): 
+    # clean up old audio output files (older than 10 minutes)
+    now = time.time()
+    for fname in os.listdir(output_folder):
+        fpath = os.path.join(output_folder, fname)
+        if os.path.isfile(fpath) and fname != filename:
+            if now - os.path.getmtime(fpath) > 600:  # 600 seconds = 10 minutes
+                try:
+                    os.remove(fpath)
+                except Exception as e:
+                    print(f"Could not delete {fpath}: {e}")
 
 def remove_markdown(text): 
     clean = re.sub(r'(\*{1,2}|_{1,2}|~{2}|`{1,3})', '', text)
@@ -172,38 +236,29 @@ def get_alterations(text, convohistory):
         "You are not a therapist, and you do not give advice. "
         "You are helpful, but you are not overly polite. "
         "Your capabilities include all those of an AI chatbot in addition to the ability to activate focus mode. "
+        "If you believe the user is asking to activate focus mode (even indirectly), respond ONLY with the JSON: {\"activate_focus_mode\": true}. "
+        "If you believe the user is asking to deactivate focus mode (using words like 'deactivate', 'end', or 'stop focus mode'), respond ONLY with the JSON: {\"deactivate_focus_mode\": true}. "
+        "Do NOT deactivate focus mode unless the user clearly asks to. If the user asks for something off-topic, politely decline and remind them focus mode is on. "
+        "Otherwise, answer normally.", 
+        "If the user asks to add a task, respond ONLY with the JSON: {\"add_task\": \"task description\"}.", 
+        "If the user asks to remove a task, respond ONLY with the JSON: {\"remove_task\": \"task description\"}."
     )
-
-    # Activate focus mode
-    if ("focus" in text or "focusing" in text) and ("begin" in text or "activate" in text or "start" in text):
-        if isinstance(convohistory, dict):
-            convohistory["in_focus_mode"] = True
-        return base + (
-            "The user just activated focus mode. "
-            "You have to be serious and focused now. "
-            "You must say something like: 'Focus mode activated.'"
-            "Then acknowledge activation with a witty, sarcastic, or motivational one-liner about focusing or being productive."
-        )
-
-    # Deactivate focus mode
-    if ("focus" in text or "focusing" in text) and ("end" in text or "deactivate" in text or "stop" in text):
-        if isinstance(convohistory, dict):
-            convohistory["in_focus_mode"] = False
-            print("[DEBUG] Set in_focus_mode to False")
-        return base + (
-            "Focus mode has been deactivated. "
-            "You can now answer any questions as usual, and your witty/snarky personality is back."
-        )
 
     # If focus mode is active, restrict responses
     in_focus_mode = False
     if isinstance(convohistory, dict):
         in_focus_mode = convohistory.get("in_focus_mode", False)
-
+        tasks = convohistory.get("tasks", [])
+    else: 
+        tasks = []
+    
+    if tasks: 
+        base += f"\nThe user's current todo list is: {tasks}", 
+    
     if in_focus_mode:
         return base + (
-            "Focus mode is active. Only answer questions related to work, study, or productivity. "
-            "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. "
+            "Focus mode is active. Only answer questions related to work, study, or productivity. ", 
+            "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. ", 
             "Suppress playful/snarky responses and use a more serious, concise tone."
         )
 

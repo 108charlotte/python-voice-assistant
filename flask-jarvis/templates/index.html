@@ -21,13 +21,18 @@
         <div id="todo-container">
             <h3>Todo List</h3>
             <ul id="todo-list"></ul>
+            <div id="todo-input-row">
+                <input id="new-task" type="text" placeholder="Add a task...">
+                <button id="add-task-btn">Add</button>
+            </div>
         </div>
     </div>
     <script>
         document.addEventListener("DOMContentLoaded", function() {
             let convohistory = {
                 history: [],
-                in_focus_mode: false
+                in_focus_mode: false, 
+                tasks: []
             };
             
             let recognizing = false; 
@@ -35,6 +40,8 @@
             let hasUserSpoken = false; 
             let lastUserPrompt = "";
             let todoList = []
+            let currentController = null;
+            let lastRequestId = 0;
 
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             const recordBtn = document.getElementById('record');
@@ -71,16 +78,22 @@
                         ? convohistory.history[convohistory.history.length - 2]
                         : null;
 
-                    // tries to prevent JARVIS from hearing itself when no external mic plugged in (using computer speakers)
+                    function isFocusModeCommand(text) {
+                        const t = text.toLowerCase();
+                        return (
+                            (t.includes("focus") || t.includes("focusing")) &&
+                            (
+                                ["activate", "begin", "start", "deactivate", "end", "stop"].some(word => t.includes(word))
+                            )
+                        );
+                    }
+
                     if (
-                        lastAssistant &&
-                        lastAssistant.content &&
-                        (
-                            lastAssistant.content.toLowerCase().includes(transcript.toLowerCase()) ||
-                            transcript.toLowerCase().includes(lastAssistant.content.toLowerCase())
-                        )
+                        lastAssistant && lastAssistant.content &&
+                        lastAssistant.content.trim().toLowerCase() === transcript.trim().toLowerCase() &&
+                        !isFocusModeCommand(transcript)
                     ) {
-                        console.log("[DEBUG] Transcript matches/contained in last assistant message, skipping backend call.");
+                        console.log("[DEBUG] Transcript exactly matches last assistant message, skipping backend call.");
                         return;
                     }
 
@@ -97,18 +110,39 @@
                         `<div class="status-line processing-status">Processing... <img src="https://i.imgur.com/llF5iyg.gif" style="width:24px;height:24px;vertical-align:middle;"></div>` +
                         `<div style="margin-top:8px;">You said: "${transcript}"</div>`;
 
+                    if (currentController) {
+                        currentController.abort();
+                    }
+                    currentController = new AbortController();
+
                     try {
+                        audio.pause(); 
+                        audio.currentTime = 0; 
+                        const requestId = ++lastRequestId;
                         const response = await fetch('/upload', {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ transcript, convohistory })
+                            body: JSON.stringify({ transcript, convohistory }),
+                            signal: currentController.signal
                         });
                         const result = await response.json();
                         convohistory = result.convohistory || convohistory;
                         updateTodoVisibility();
-                        audio.src = result.audio_url + '?v=' + Date.now();
 
-                        // Update status to show assistant is speaking
+                        if (requestId === lastRequestId && result.audio_url) {
+                            audio.pause();
+                            audio.currentTime = 0;
+                            audio.src = result.audio_url + '?v=' + Date.now();
+                            setTimeout(() => {
+                                audio.play().catch(e => {
+                                    console.log("Audio play error:", e);
+                                    audio.onended();
+                                });
+                            }, 1000);
+                        } else {
+                            audio.onended();
+                        }
+
                         let focusStatus = convohistory.in_focus_mode
                             ? `<div class="status-line focus-status">Focus Mode: ON</div>`
                             : "";
@@ -117,20 +151,12 @@
                             focusStatus +
                             `<div class="status-line not-listening-status">Not listening.</div>` +
                             `<div class="status-line you-said-status">You said: "${lastUserPrompt}"</div>`;
-
-                        if (result.audio_url) {
-                            audio.src = result.audio_url + '?v=' + Date.now();
-                            setTimeout(() => {
-                                audio.play().catch(e => {
-                                    console.log("Audio play error:", e);
-                                    audio.onended(); // fallback if play fails
-                            });
-                        }, 1000);
-                        } else {
-                            audio.onended(); // Manually trigger if no audio
-                        }
                     } catch (err) {
-                        console.error("Error during fetch or JSON parsing:", err);
+                        if (err.name === 'AbortError') {
+                            console.log('Previous request aborted');
+                        } else {
+                            console.error("Error during fetch or JSON parsing:", err);
+                        }
                     }
                 };
 
@@ -155,7 +181,7 @@
                             } catch (e) {
                                 console.log("Recognition start error:", e);
                             }
-                        }, 1000);
+                        }, 200); // Try 200ms instead of 1000ms
                     }
                 };
 
@@ -275,7 +301,7 @@
                         } catch (e) {
                             console.log("Recognition start error:", e);
                         }
-                    }, 1000);
+                    }, 200); // Try 200ms instead of 1000ms
                 }
             };
 
@@ -284,15 +310,59 @@
             function updateTodoVisibility() {
                 const todoContainer = document.getElementById('todo-container');
                 if (convohistory.in_focus_mode) {
-                    todoContainer.style.display = "block";
+                    todoContainer.style.display = "flex";
+                    renderTodoList(); 
                 } else {
                     todoContainer.style.display = "none";
                 }
             }
 
-            console.log("Focus mode:", convohistory.in_focus_mode);
-            console.log("Focus mode after backend:", convohistory.in_focus_mode);
-            console.log("Todo container display:", document.getElementById('todo-container').style.display);
+            function renderTodoList() {
+                const todoListEl = document.getElementById('todo-list');
+                todoListEl.innerHTML = "";
+                if ((convohistory.tasks || []).length === 0) {
+                    const emptyMsg = document.createElement('li');
+                    emptyMsg.textContent = "No tasks yet. ";
+                    emptyMsg.style.color = "#aaa";
+                    todoListEl.appendChild(emptyMsg);
+                }
+                else {
+                    (convohistory.tasks || []).forEach((task, idx) => {
+                        const li = document.createElement('li');
+                        li.textContent = task;
+                        
+                        const removeBtn = document.createElement('button'); 
+                        removeBtn.textContent = "🗑️"; 
+                        removeBtn.title = "Remove task"; 
+
+                        removeBtn.onclick = (e) => {
+                            e.stopPropagation();
+                            convohistory.tasks.splice(idx, 1);
+                            renderTodoList();
+                        };
+
+                        li.appendChild(removeBtn);
+                        todoListEl.appendChild(li);
+                    });
+                }
+            }
+
+            document.getElementById('new-task').addEventListener('keydown', function(e) {
+                if (e.key === "Enter") {
+                    document.getElementById('add-task-btn').click();
+                }
+            });
+
+            document.getElementById('add-task-btn').onclick = () => {
+                    const input = document.getElementById('new-task');
+                    const task = input.value.trim();
+                    if (task) {
+                        convohistory.tasks = convohistory.tasks || [];
+                        convohistory.tasks.push(task);
+                        input.value = "";
+                        renderTodoList();
+                    }
+                };
         });
     </script>
 </body>
