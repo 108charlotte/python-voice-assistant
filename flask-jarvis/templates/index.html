@@ -51,11 +51,10 @@
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             const analyser = audioCtx.createAnalyser();
             analyser.fftSize = 64;
-
             const bufferLength = analyser.frequencyBinCount;
             const dataArray = new Uint8Array(bufferLength);
 
-            let source = audioCtx.createMediaElementSource(audio);
+            const source = audioCtx.createMediaElementSource(audio);
             source.connect(analyser);
             analyser.connect(audioCtx.destination);
 
@@ -174,30 +173,28 @@
                 };
 
                 recognition.onend = () => {
-                    recognizing = false;
-                    console.log("Recognition ended, recognizing set to false.");
-                    if (listening && !isAudioPlaying) {
+                    recognizing = false; 
+                    console.log("Recognition ended");
+                    if (listening) {
                         setTimeout(() => {
-                            try {
-                                recognition.start();
-                                console.log("Recognition restarted after recognition ended.");
-                            } catch (e) {
-                                console.log("Recognition start error:", e);
-                            }
+                            if (!recognizing) recognition.start();
                         }, 100);
+                    }
+                    if (!listening) {
+                        statusDiv.innerHTML = `<div style="color:#888;">Stopped listening.</div>`;
                     }
                 };
 
                 recognition.onerror = (e) => {
-                    recognizing = false;
-                    console.log("Recognition error, recognizing set to false.", e);
-                    if (listening && !isAudioPlaying) {
-                        try {
-                            recognition.start();
-                            console.log("Recognition restarted after error.");
-                        } catch (err) {
-                            console.log("Recognition start error after error:", err);
-                        }
+                    console.log("Recognition error:", e);
+                    if (e.error === "no-speech" && listening) {
+                        setTimeout(() => recognition.start(), 500);
+                    } else if (e.error === "network" && listening) {
+                        setTimeout(() => recognition.start(), 1500);
+                    } else {
+                        listening = false;
+                        recordBtn.disabled = false;
+                        stopBtn.disabled = true;
                     }
                 };
             } else {
@@ -268,7 +265,6 @@
             let isAudioPlaying = false;
 
             audio.onplay = () => {
-                isAudioPlaying = true;
                 if (audioCtx.state === 'suspended') audioCtx.resume();
             };
 
@@ -278,28 +274,13 @@
 
             function animate() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-                if (isAudioPlaying) {
-                    analyser.getByteFrequencyData(dataArray);
-                    for (let i = 0; i < bufferLength; i++) {
-                        bars[i].update(dataArray[i]);
-                        bars[i].draw(ctx);
-                    }
-                } else {
-                    ctx.save();
-                    ctx.globalAlpha = 0.15;
-                    ctx.beginPath();
-                    ctx.arc(centerX, centerY, radius + 10, 0, Math.PI * 2);
-                    ctx.strokeStyle = "#00baff";
-                    ctx.lineWidth = 6;
-                    ctx.stroke();
-                    ctx.restore();
+                analyser.getByteFrequencyData(dataArray);
+                for (let i = 0; i < bufferLength; i++) {
+                    bars[i].update(dataArray[i]);
+                    bars[i].draw(ctx);
                 }
-
                 requestAnimationFrame(animate);
             }
-
-            // Start the animation loop once
             animate();
 
             audio.onended = () => {
