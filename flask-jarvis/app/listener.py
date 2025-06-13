@@ -59,7 +59,8 @@ def respond(text, convohistory=None):
     if "focus" in lower_text or "focusing" in lower_text:
         if any(word in lower_text for word in ["end", "deactivate", "stop"]):
             convohistory["in_focus_mode"] = False
-            ai_response = deactivate_focus_response
+            convohistory["awaiting_clear_tasks"] = True
+            ai_response = "Focus mode deactivated. Do you want to clear your tasks?"
             audio_url = generate_audio(ai_response)
             return {
                 "text": ai_response,
@@ -142,6 +143,15 @@ def respond(text, convohistory=None):
                 task_description = parsed["remove_task"]
                 convohistory["tasks"].remove(task_description)
                 ai_response = f"Task removed: {task_description}"
+                audio_url = generate_audio(ai_response)
+                return {
+                    "text": ai_response,
+                    "audio_url": audio_url,
+                    "convohistory": convohistory
+                }
+            elif parsed.get("clear_tasks"):
+                convohistory["tasks"] = []
+                ai_response = "All tasks cleared."
                 audio_url = generate_audio(ai_response)
                 return {
                     "text": ai_response,
@@ -255,10 +265,13 @@ def get_alterations(text, convohistory):
         "If you believe the user is asking to activate focus mode (even indirectly), respond ONLY with the JSON: {\"activate_focus_mode\": true}. "
         "If you believe the user is asking to deactivate focus mode (using words like 'deactivate', 'end', or 'stop focus mode'), respond ONLY with the JSON: {\"deactivate_focus_mode\": true}. "
         "Do NOT deactivate focus mode unless the user clearly asks to. If the user asks for something off-topic, politely decline and remind them focus mode is on. "
-        "Otherwise, answer normally. "
         "If the user does not specify a task to add or remove, ask them to clarify what task they mean."
         "If the user asks to add a task, respond ONLY with the JSON: {\"add_task\": \"task description\"}. "
         "If the user asks to remove a task, respond ONLY with the JSON: {\"remove_task\": \"task description\"}."
+        "If the user wants to see their tasks, you can list their tasks then inform them to enter focus mode to see a graphical list of their tasks. "
+        "If the user deactivates focus mode, you will ask them if they want to clear their tasks. If they say yes, respond with the JSON: {\"clear_tasks\": true}. "
+        "Never invent or assume tasks. Only add a task if the user explicitly says to add it, and only use the exact words the user said."
+        "You must always use the exact keys (with underscores) in your JSON responses. Never use any other variation."
     )
 
     in_focus_mode = False
@@ -270,6 +283,8 @@ def get_alterations(text, convohistory):
 
     if tasks:
         base += f"\nThe user's current todo list is: {tasks}."
+    else:
+        base += "\nThe user's current todo list is empty. Do not say the user has any tasks. If asked, say their list is empty."
 
     if in_focus_mode:
         base += (

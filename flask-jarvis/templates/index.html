@@ -48,6 +48,17 @@
             const stopBtn = document.getElementById('stop');
             const statusDiv = document.getElementById('status');
             const audio = document.getElementById("voice");
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            const analyser = audioCtx.createAnalyser();
+            analyser.fftSize = 64;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+
+            let source = audioCtx.createMediaElementSource(audio);
+            source.connect(analyser);
+            analyser.connect(audioCtx.destination);
+
             const canvas = document.getElementById("audio_visualizer");
             const ctx = canvas.getContext("2d");
             let recognition;
@@ -72,6 +83,7 @@
                 };
 
                 recognition.onresult = async (event) => {
+                    console.log(event.results);
                     const transcript = event.results[0][0].transcript;
                     lastUserPrompt = transcript;
                     const lastAssistant = convohistory.history.length >= 2
@@ -133,6 +145,7 @@
                             audio.pause();
                             audio.currentTime = 0;
                             audio.src = result.audio_url + '?v=' + Date.now();
+
                             setTimeout(() => {
                                 audio.play().catch(e => {
                                     console.log("Audio play error:", e);
@@ -162,44 +175,29 @@
 
                 recognition.onend = () => {
                     recognizing = false;
-                    console.log("%cRecognition ended, recognizing:", "color: gray", recognizing, "listening:", listening);
-
-                    let focusStatus = convohistory.in_focus_mode
-                        ? `<div class="status-line focus-status">Focus Mode: ON</div>`
-                        : "";
-
-                    statusDiv.innerHTML =
-                        focusStatus +
-                        `<div class="status-line not-listening-status">Not listening.</div>` +
-                        `<div class="status-line you-said-status">${lastUserPrompt ? `You said: "${lastUserPrompt}"` : ""}</div>`;
-
-                    // If still listening and recognition is not running, and audio is not playing, restart recognition
-                    if (listening && !recognizing && (audio.paused || audio.ended)) {
+                    console.log("Recognition ended, recognizing set to false.");
+                    if (listening && !isAudioPlaying) {
                         setTimeout(() => {
-                            if (!recognizing) {
-                                try {
-                                    recognition.start();
-                                } catch (e) {
-                                    console.log("Recognition start error:", e);
-                                }
+                            try {
+                                recognition.start();
+                                console.log("Recognition restarted after recognition ended.");
+                            } catch (e) {
+                                console.log("Recognition start error:", e);
                             }
-                        }, 200);
+                        }, 100);
                     }
                 };
 
                 recognition.onerror = (e) => {
-                    console.log("%cRecognition error:", "color: gray", e);
-                    if (listening) {
-                        setTimeout(() => {
-                            try {
-                                recognition.start();
-                            } catch (err) {
-                                console.log("Recognition start error:", err);
-                            }
-                        }, 1000);
-                    } else {
-                        recordBtn.disabled = false;
-                        stopBtn.disabled = true;
+                    recognizing = false;
+                    console.log("Recognition error, recognizing set to false.", e);
+                    if (listening && !isAudioPlaying) {
+                        try {
+                            recognition.start();
+                            console.log("Recognition restarted after error.");
+                        } catch (err) {
+                            console.log("Recognition start error after error:", err);
+                        }
                     }
                 };
             } else {
@@ -257,23 +255,13 @@
                 }
             }
 
-            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            const analyser = audioCtx.createAnalyser();
-            analyser.fftSize = 64; // You can adjust for more/less bars
-            const bufferLength = analyser.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
-
-            const source = audioCtx.createMediaElementSource(audio);
-            source.connect(analyser);
-
-            // Create an array to hold your Bar objects
             const bars = [];
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             const radius = 40;
             for (let i = 0; i < bufferLength; i++) {
                 const angle = (i / bufferLength) * Math.PI * 2;
-                const color = `hsl(${200 + (i * 2) % 60}, 100%, 60%)`; // blue/cyan spiral
+                const color = `hsl(${200 + (i * 2) % 60}, 100%, 60%)`;
                 bars.push(new Bar(centerX, centerY, radius, angle, color, i));
             }
 
@@ -315,18 +303,7 @@
             animate();
 
             audio.onended = () => {
-                console.log("Audio ended, recognizing:", recognizing, "listening:", listening);
-                if (listening && !recognizing) {
-                    setTimeout(() => {
-                        if (!recognizing) {
-                            try {
-                                recognition.start();
-                            } catch (e) {
-                                console.log("Recognition start error:", e);
-                            }
-                        }
-                    }, 200);
-                }
+                isAudioPlaying = false;
             };
 
             function updateTodoVisibility() {
