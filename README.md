@@ -13,6 +13,7 @@ HOW I made my project:
 - python backend through flask, utilized vosk for speech --> text (speech received from javascript frontend using speech recognition)
 - used hack club unlimited open AI for backend response from AI
 - used edge-tts to convert AI response back to speech and play through audio element on html page
+- used resources outlined in resources.md along with AI assistance through ChatGPT and Copilot
 
 Struggles and lessons: 
 - instructing the ai: I particularly struggled with getting the AI to only add/remove tasks or activate/deactivate focus mode when the user explicitly requested it
