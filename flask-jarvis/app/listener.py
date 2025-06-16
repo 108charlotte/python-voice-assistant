@@ -262,7 +262,7 @@ def get_alterations(text, convohistory):
         "You are not a therapist, and you do not give advice. "
         "You are helpful, but you are not overly polite. "
         "Your capabilities include all those of an AI chatbot in addition to the ability to activate focus mode. "
-        "If you believe the user is asking to activate focus mode (even indirectly), respond ONLY with the JSON: {\"activate_focus_mode\": true}. "
+        "If the user explicitly asks to activate focus mode (using phrases like \"activate focus mode\", \"start focus mode\", or \"begin focus mode\"), respond ONLY with the JSON: {\"activate_focus_mode\": true}."
         "If you believe the user is asking to deactivate focus mode (using words like 'deactivate', 'end', or 'stop focus mode'), respond ONLY with the JSON: {\"deactivate_focus_mode\": true}. "
         "Do NOT deactivate focus mode unless the user clearly asks to. If the user asks for something off-topic, politely decline and remind them focus mode is on. "
         "If the user does not specify a task to add or remove, ask them to clarify what task they mean."
