@@ -22,3 +22,5 @@ Struggles and lessons:
     - learned: how to use speech recognition, how to record audio from browser
 - flask backend to javascript frontend: Probably the most frustrating struggle was sending uncorrupted audio data from the AI back to the user. First, I struggled with getting the text to speech to work, and after attempting chunking I ended up switching to edge-tts. After that, I struggled with the audio element not playing on the html page as a result of my javascript code. 
     - learned: sometimes the hardest thing isn't writing the code--its getting the different parts to interact well together
+
+Demo: https://python-voice-assistant.onrender.com/
