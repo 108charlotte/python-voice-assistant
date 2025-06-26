@@ -1,0 +1,6 @@
+services: 
+  - type: web
+    name: python-voice-assistant
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
