@@ -1,12 +1,14 @@
 from flask import Blueprint, request, jsonify, render_template, send_from_directory, redirect
-from app.listener import listen, respond 
-from app.audio_getter import process_audio
 import os
 import time
 
-main = Blueprint("main", __name__)
-
 REDIRECT_MODE = os.getenv("REDIRECT_TO_NEW_URL", "false").lower() == "true"
+
+if !REDIRECT_MODE:
+    from app.listener import listen, respond 
+    from app.audio_getter import process_audio
+
+main = Blueprint("main", __name__)
 
 @main.route("/", defaults={"path": ""})
 @main.route("/<path:path>")
