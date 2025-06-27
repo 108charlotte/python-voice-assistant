@@ -4,7 +4,7 @@ import time
 
 REDIRECT_MODE = os.getenv("REDIRECT_TO_NEW_URL", "false").lower() == "true"
 
-if !REDIRECT_MODE:
+if not REDIRECT_MODE:
     from app.listener import listen, respond 
     from app.audio_getter import process_audio
 
