@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify, render_template, send_from_directory
+from flask import Blueprint, request, jsonify, render_template, send_from_directory, redirect
 from app.listener import listen, respond 
 from app.audio_getter import process_audio
 import os
@@ -6,9 +6,16 @@ import time
 
 main = Blueprint("main", __name__)
 
-@main.route("/")
-def home():
-    return render_template("index.html")
+REDIRECT_MODE = os.getenv("REDIRECT_TO_NEW_URL", "false").lower() == "true"
+
+@main.route("/", defaults={"path": ""})
+@main.route("/<path:path>")
+def catch_all(path):
+    if REDIRECT_MODE:
+        return redirect(f"https://jarvis-python-voice-assistant.onrender.com/{path}", code=302)
+    if path == "":
+        return render_template("index.html")
+    return "404 Not Found", 404
 
 @main.route("/upload", methods=["POST"])
 def upload_audio(): 
@@ -37,7 +44,6 @@ def upload_audio():
     
     result = respond(transcript)
     print("Recognition:", time.time() - start)
-    
     print("TTS:", time.time() - start)
     
     return jsonify({
