@@ -52,6 +52,26 @@ def respond(text, convohistory=None):
         convohistory["history"] = []
     if "in_focus_mode" not in convohistory:
         convohistory["in_focus_mode"] = False
+    if convohistory.get("awaiting_clear_tasks"):
+        if text.strip().lower() in ["yes", "yes please", "sure", "please do", "yep", "yeah"]:
+            convohistory["tasks"] = []
+            convohistory["awaiting_clear_tasks"] = False
+            ai_response = "All tasks cleared."
+            audio_url = generate_audio(ai_response)
+            return {
+                "text": ai_response,
+                "audio_url": audio_url,
+                "convohistory": convohistory
+            }
+        else:
+            convohistory["awaiting_clear_tasks"] = False
+            ai_response = "Okay, your tasks are not cleared."
+            audio_url = generate_audio(ai_response)
+            return {
+                "text": ai_response,
+                "audio_url": audio_url,
+                "convohistory": convohistory
+            }
 
     history = convohistory["history"]
 
@@ -269,7 +289,8 @@ def get_alterations(text, convohistory):
         "If the user asks to add a task, respond ONLY with the JSON: {\"add_task\": \"task description\"}. "
         "If the user asks to remove a task, respond ONLY with the JSON: {\"remove_task\": \"task description\"}."
         "If the user wants to see their tasks, you can list their tasks then inform them to enter focus mode to see a graphical list of their tasks. "
-        "If the user deactivates focus mode, you will ask them if they want to clear their tasks. If they say yes, respond with the JSON: {\"clear_tasks\": true}. "
+        "If the user deactivates focus mode, you will ask them if they want to clear their tasks. "
+        "After you ask if the user wants to clear their tasks, if the user responds affirmatively (e.g., 'yes', 'yes please', 'sure'), respond ONLY with the JSON: {\"clear_tasks\": true}."
         "Never invent or assume tasks. Only add a task if the user explicitly says to add it, and only use the exact words the user said."
         "You must always use the exact keys (with underscores) in your JSON responses. Never use any other variation."
     )
@@ -290,7 +311,8 @@ def get_alterations(text, convohistory):
         base += (
             " Focus mode is active. Only answer questions related to work, study, or productivity. "
             "Politely decline to answer any other questions, and do not engage in small talk or casual conversation. "
-            "Suppress playful/snarky responses and use a more serious, concise tone."
+            "Suppress playful/snarky responses and use a more serious, concise tone. "
+            "If the user asks to clear all tasks, you are allowed to do so and should respond ONLY with the JSON: {\"clear_tasks\": true}."
         )
 
     return base
