@@ -59,3 +59,11 @@ def upload_audio():
 def audio_output(filename):
     audio_folder = os.path.join(os.path.dirname(__file__), '..', 'audio_output')
     return send_from_directory(audio_folder, filename)
+
+@main.route("/sync_tasks", methods=["POST"])
+def sync_tasks():
+    data = request.get_json()
+    convohistory = data.get("convohistory", {})
+    tasks = data.get("tasks", [])
+    convohistory["tasks"] = tasks
+    return jsonify({"convohistory": convohistory})

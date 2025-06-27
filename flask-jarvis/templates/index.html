@@ -319,6 +319,7 @@
                             e.stopPropagation();
                             convohistory.tasks.splice(idx, 1);
                             renderTodoList();
+                            syncTasksWithBackend();
                         };
 
                         li.appendChild(removeBtn);
@@ -341,8 +342,19 @@
                         convohistory.tasks.push(task);
                         input.value = "";
                         renderTodoList();
+                        syncTasksWithBackend();
                     }
                 };
+
+            async function syncTasksWithBackend() {
+                const response = await fetch('/sync_tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tasks: convohistory.tasks, convohistory })
+                });
+                const result = await response.json();
+                convohistory = result.convohistory || convohistory;
+            }
         });
     </script>
 </body>
